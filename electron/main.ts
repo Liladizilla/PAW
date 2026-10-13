@@ -6,17 +6,11 @@ import { decideApproval, listApprovals, requestApproval } from './approvals'
 import { createRun, listRuns, resolveRunRecovery, transitionRun } from './runs'
 import { executeGraph, ExecutionControl, type GraphExecutionOptions } from '../src/runtime/executor'
 import { validateGraph, type GraphDefinition } from '../src/runtime/graph'
+import { builtinNodeHandlers } from '../src/runtime/builtins'
 
 const WORKSPACE_ID = 'default'
 const activeExecutions = new Map<string, { control: ExecutionControl; workspaceId: string }>()
 const SAFE_WORKSPACE_ID = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/
-
-const builtinHandlers: GraphExecutionOptions['handlers'] = {
-  'text.constant': ({ config }) => ({ value: typeof config.value === 'string' ? config.value : '' }),
-  'text.uppercase': ({ inputs }) => ({ text: String(inputs.text ?? '').toUpperCase() }),
-  'text.concat': ({ inputs, config }) => ({ text: String(inputs.left ?? '') + String(config.separator ?? '') + String(inputs.right ?? '') }),
-  'json.stringify': ({ inputs }) => ({ text: JSON.stringify(inputs.value) ?? 'null' })
-}
 
 function readGraphPayload(raw: unknown): GraphDefinition {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Graph must be an object.')
@@ -117,7 +111,7 @@ function registerRuntimeIpc() {
     const control = new ExecutionControl()
     activeExecutions.set(run.id, { control, workspaceId })
     void executeGraph(graph, {
-      handlers: builtinHandlers,
+      handlers: builtinNodeHandlers,
       concurrency,
       control,
       onEvent: async event => {
