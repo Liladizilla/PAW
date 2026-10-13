@@ -28,11 +28,13 @@ Context isolation and Node integration are enabled appropriately: context isolat
 ## Implemented foundation (MVP, not a complete runtime)
 
 - `src/runtime/graph.ts` defines schema-versioned graph/node/edge contracts, typed ports, duplicate/reference/type validation, cycle detection and deterministic topological execution planning.
-- `electron/persistence.ts` stores workspace snapshots with atomic replacement and per-workspace append-only NDJSON history. This is an initial JSON store, not the planned SQLite/event-index implementation.
+- `electron/persistence.ts` stores workspace snapshots with atomic replacement and per-workspace append-only NDJSON history, with bounded document/history sizes. This is an initial JSON store, not the planned SQLite/event-index implementation.
+- `electron/approvals.ts` persists approval records and serializes mutations to avoid lost updates.
+- `electron/runs.ts` persists run lifecycle records, transition history and explicit manual recovery decisions. It records run control state but does not execute graph nodes.
 - `electron/providers/groq.ts` calls Groq from the Electron main process. API credentials are encrypted with `safeStorage`; configuration fails closed if OS-backed encryption is unavailable. The provider panel is desktop-only.
 - `electron/preload.ts` exposes a narrow, named API rather than generic filesystem or IPC access.
 
-Graph planning is not graph execution. There is no autonomous tool broker, policy engine, approval queue, scheduler, cancellation protocol or remote worker implementation yet.
+Graph planning is not graph execution. There is no autonomous tool broker, policy engine, graph scheduler/executor, cooperative worker cancellation, or remote worker implementation yet. Pause/cancel/recovery currently exist as persisted lifecycle contracts, not as controls connected to a running executor.
 
 ## Open engineering work
 Define event schemas, idempotency keys, graph port typing, worker authentication, sync conflict resolution, plugin signing, data migration, OS-specific secret storage and performance budgets.
