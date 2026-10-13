@@ -28,7 +28,7 @@ export interface GraphDefinition {
 }
 
 export interface GraphIssue {
-  code: "INVALID_ID" | "DUPLICATE_ID" | "MISSING_NODE" | "MISSING_PORT" | "PORT_TYPE_MISMATCH" | "DUPLICATE_EDGE" | "CYCLE" | "INVALID_SHAPE";
+  code: "INVALID_ID" | "DUPLICATE_ID" | "MISSING_NODE" | "MISSING_PORT" | "PORT_TYPE_MISMATCH" | "DUPLICATE_EDGE" | "MULTIPLE_INPUTS" | "REQUIRED_INPUT_UNCONNECTED" | "CYCLE" | "INVALID_SHAPE";
   path: string;
   message: string;
 }
@@ -65,6 +65,7 @@ export function validateGraph(graph: GraphDefinition): GraphIssue[] {
 
   const edgeIds = new Set<string>();
   const edgeKeys = new Set<string>();
+  const targetPorts = new Set<string>();
   graph.edges.forEach((edge, index) => {
     const path = `edges[${index}]`;
     if (!edge || typeof edge.id !== "string" || !ID_PATTERN.test(edge.id) ||
@@ -81,15 +82,18 @@ export function validateGraph(graph: GraphDefinition): GraphIssue[] {
     const key = `${edge.from.nodeId}:${edge.from.port}->${edge.to.nodeId}:${edge.to.port}`;
     if (edgeKeys.has(key)) issues.push({ code: "DUPLICATE_EDGE", path, message: "The same connection appears more than once." });
     edgeKeys.add(key);
+    const targetPortKey = `${edge.to.nodeId}:${edge.to.port}`;
+    if (targetPorts.has(targetPortKey)) issues.push({ code: "MULTIPLE_INPUTS", path, message: `Input port "${edge.to.port}" on "${edge.to.nodeId}" has more than one incoming connection.` });
+    targetPorts.add(targetPortKey);
 
     const source = nodes.get(edge.from.nodeId);
     const target = nodes.get(edge.to.nodeId);
     if (!source) issues.push({ code: "MISSING_NODE", path: `${path}.from.nodeId`, message: `Source node "${edge.from.nodeId}" does not exist.` });
     if (!target) issues.push({ code: "MISSING_NODE", path: `${path}.to.nodeId`, message: `Target node "${edge.to.nodeId}" does not exist.` });
-    if (source && source.outputs && !source.outputs[edge.from.port]) {
+    if (source && !source.outputs?.[edge.from.port]) {
       issues.push({ code: "MISSING_PORT", path: `${path}.from.port`, message: `Output port "${edge.from.port}" is not declared on "${source.id}".` });
     }
-    if (target && target.inputs && !target.inputs[edge.to.port]) {
+    if (target && !target.inputs?.[edge.to.port]) {
       issues.push({ code: "MISSING_PORT", path: `${path}.to.port`, message: `Input port "${edge.to.port}" is not declared on "${target.id}".` });
     }
     const output = source?.outputs?.[edge.from.port];
@@ -98,6 +102,15 @@ export function validateGraph(graph: GraphDefinition): GraphIssue[] {
       issues.push({ code: "PORT_TYPE_MISMATCH", path, message: `Cannot connect ${output.type} to ${input.type}.` });
     }
   });
+
+  for (const node of graph.nodes) {
+    if (!node || typeof node.id !== "string" || !node.inputs || typeof node.inputs !== "object" || Array.isArray(node.inputs)) continue;
+    for (const [portName, port] of Object.entries(node.inputs)) {
+      if (port?.required && !targetPorts.has(`${node.id}:${portName}`)) {
+        issues.push({ code: "REQUIRED_INPUT_UNCONNECTED", path: `nodes.${node.id}.inputs.${portName}`, message: `Required input "${portName}" on "${node.id}" is not connected.` });
+      }
+    }
+  }
 
   const cycle = findCycle(graph.nodes, graph.edges);
   if (cycle.length) issues.push({ code: "CYCLE", path: "edges", message: `Directed cycle detected: ${cycle.join(" -> ")}.` });
