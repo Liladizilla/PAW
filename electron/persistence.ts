@@ -1,5 +1,5 @@
 import { app } from "electron";
-import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -95,6 +95,13 @@ export async function appendHistoryEvent(
   const line = encodeJson(event, MAX_EVENT_BYTES);
   const path = historyPath(workspaceId);
   await mkdir(join(dataDirectory(), "history"), { recursive: true });
+  let currentBytes = 0;
+  try { currentBytes = (await stat(path)).size; } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  if (currentBytes + Buffer.byteLength(line, "utf8") + 1 > 32_000_000) {
+    throw new Error("Workspace history reached its storage limit. Export or archive history before appending.");
+  }
   await appendFile(path, line + "\n", { encoding: "utf8", mode: 0o600 });
   return event;
 }
