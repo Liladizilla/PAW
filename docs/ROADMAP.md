@@ -93,4 +93,4 @@ Acceptance: all release gates in docs/PIPELINES.md and docs/TEST_STRATEGY.md are
 
 ## Current reality
 
-The repository now includes a typed graph validator/planner, local JSON workspace snapshots, append-only event history, guarded IPC and a Groq provider path with encrypted credential storage. It still does not execute graph nodes, invoke tools autonomously, persist approvals, implement a scheduler, or provide remote workers. The browser preview cannot use the desktop provider bridge. The target architecture remains larger than the current implementation.
+The repository now includes a typed graph validator/planner, local JSON workspace snapshots, append-only event history, durable approval records, a persisted run lifecycle state machine with manual recovery, guarded IPC and a Groq provider path with encrypted credential storage. It still does not execute graph nodes, invoke tools autonomously, or provide remote workers. The browser preview cannot use the desktop provider bridge. The target architecture remains larger than the current implementation.
