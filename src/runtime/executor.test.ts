@@ -102,8 +102,9 @@ test("pause holds scheduling until explicitly resumed", async () => {
   const control = new ExecutionControl();
   control.pause();
   let invoked = false;
+  const events: ExecutionEvent[] = [];
   const resultPromise = executeGraph({ schemaVersion: 1, id: "pause", nodes: [{ id: "n", type: "n" }], edges: [] }, {
-    control, handlers: { n: () => { invoked = true; return {}; } }
+    control, handlers: { n: () => { invoked = true; return {}; } }, onEvent: event => { events.push(event); }
   });
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(invoked, false);
@@ -111,6 +112,8 @@ test("pause holds scheduling until explicitly resumed", async () => {
   const result = await resultPromise;
   assert.equal(result.status, "succeeded");
   assert.equal(invoked, true);
+  assert.ok(events.some(event => event.type === "graph.paused"));
+  assert.ok(events.some(event => event.type === "graph.resumed"));
 });
 
 test("cancelling a paused execution wakes it and does not run the handler", async () => {
@@ -124,4 +127,44 @@ test("cancelling a paused execution wakes it and does not run the handler", asyn
   const result = await resultPromise;
   assert.equal(result.status, "cancelled");
   assert.equal(invoked, false);
+});
+
+test("concurrency limit bounds simultaneous independent node handlers", async () => {
+  let active = 0;
+  let maximumActive = 0;
+  const graph: GraphDefinition = {
+    schemaVersion: 1, id: "concurrency", nodes: [
+      { id: "a", type: "wait" }, { id: "b", type: "wait" },
+      { id: "c", type: "wait" }, { id: "d", type: "wait" }
+    ], edges: []
+  };
+  const result = await executeGraph(graph, {
+    concurrency: 2,
+    handlers: { wait: async () => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      await new Promise(resolve => setTimeout(resolve, 15));
+      active -= 1;
+      return {};
+    } }
+  });
+  assert.equal(result.status, "succeeded");
+  assert.equal(result.completedNodeIds.length, 4);
+  assert.equal(maximumActive, 2);
+});
+
+test("cancellation aborts a cooperative active handler", async () => {
+  const control = new ExecutionControl();
+  let started = false;
+  const resultPromise = executeGraph({ schemaVersion: 1, id: "active-cancel", nodes: [{ id: "n", type: "wait" }], edges: [] }, {
+    control, handlers: { wait: ({ signal }) => new Promise<Record<string, unknown>>((_resolve, reject) => {
+      started = true;
+      signal.addEventListener("abort", () => reject(new Error("aborted cooperatively")), { once: true });
+    }) }
+  });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(started, true);
+  control.cancel("test cancellation");
+  const result = await resultPromise;
+  assert.equal(result.status, "cancelled");
 });
