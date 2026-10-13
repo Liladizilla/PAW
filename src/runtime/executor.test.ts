@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { executeGraph, type ExecutionEvent, type GraphExecutionOptions } from "./executor";
+import { executeGraph, ExecutionControl, type ExecutionEvent, type GraphExecutionOptions } from "./executor";
 import type { GraphDefinition } from "./graph";
 
 const graph: GraphDefinition = {
@@ -94,6 +94,34 @@ test("cancellation prevents queued nodes from starting", async () => {
   const result = await executeGraph({ schemaVersion: 1, id: "cancel", nodes: [{ id: "n", type: "n" }], edges: [] }, {
     signal: controller.signal, handlers: { n: () => { invoked = true; return {}; } }
   });
+  assert.equal(result.status, "cancelled");
+  assert.equal(invoked, false);
+});
+
+test("pause holds scheduling until explicitly resumed", async () => {
+  const control = new ExecutionControl();
+  control.pause();
+  let invoked = false;
+  const resultPromise = executeGraph({ schemaVersion: 1, id: "pause", nodes: [{ id: "n", type: "n" }], edges: [] }, {
+    control, handlers: { n: () => { invoked = true; return {}; } }
+  });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(invoked, false);
+  control.resume();
+  const result = await resultPromise;
+  assert.equal(result.status, "succeeded");
+  assert.equal(invoked, true);
+});
+
+test("cancelling a paused execution wakes it and does not run the handler", async () => {
+  const control = new ExecutionControl();
+  control.pause();
+  let invoked = false;
+  const resultPromise = executeGraph({ schemaVersion: 1, id: "pause-cancel", nodes: [{ id: "n", type: "n" }], edges: [] }, {
+    control, handlers: { n: () => { invoked = true; return {}; } }
+  });
+  control.cancel("user requested cancellation");
+  const result = await resultPromise;
   assert.equal(result.status, "cancelled");
   assert.equal(invoked, false);
 });
