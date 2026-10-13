@@ -39,10 +39,8 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
-      - name: Synchronize and install locked dependencies
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          npm ci --ignore-scripts
+      - name: Install committed lockfile
+        run: npm ci --ignore-scripts
       - name: Create dependency audit report
         shell: bash
         run: |
@@ -53,6 +51,10 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const report = JSON.parse(fs.readFileSync('npm-audit.json', 'utf8'));
+          if (report.error || !report.metadata?.vulnerabilities) {
+            console.error('npm audit failed to produce a valid dependency report:', report.error?.summary ?? 'missing vulnerability metadata');
+            process.exitCode = 1;
+          }
           const counts = report.metadata?.vulnerabilities ?? {};
           console.log('Dependency audit summary:', JSON.stringify(counts));
           if ((counts.critical ?? 0) > 0) {
