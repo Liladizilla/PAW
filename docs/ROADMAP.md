@@ -15,12 +15,12 @@ Acceptance: reviewers can identify each module's authority, API boundary, data o
 
 ## M1 — Reproducible foundation and CI
 
-- [ ] Commit package lockfile through the CI bootstrap and verify subsequent clean npm ci runs.
+- [x] Commit package-lock.json through the CI bootstrap; clean npm ci is verified in CI.
 - [ ] Verify typecheck, renderer build and desktop build from a clean checkout.
 - [x] Add a TypeScript unit-test runner, dependency audit and secret scanning.
 - [ ] Add lint/format and require a clean lockfile-backed CI run.
 - [ ] Validate Electron security settings, preload allowlist and restrictive CSP.
-- [ ] Add CI artifact retention and useful failure reports.
+- [x] Add CI artifact retention and useful failure reports.
 - [ ] Establish reference-machine startup, memory and renderer performance baselines.
 
 Acceptance: clean install and all required CI gates pass; current preview remains explicitly labelled as simulated.
