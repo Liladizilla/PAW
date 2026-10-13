@@ -2,7 +2,7 @@
 
 P.A.W. is a local-first, cross-platform agent workspace for Linux, Windows and macOS. The target product combines a Babylon.js spatial control surface with a durable execution runtime, typed workflows, bounded autonomous planning, scoped memory, guarded tools and optional remote workers.
 
-**Current state:** early development. The deployed preview is a UI demonstration. Sample nodes are not real agents; real execution, persistence, provider integration and distributed workers are not yet implemented. Never enter production credentials into the browser preview.
+**Current state:** early development. The deployed browser preview remains a UI demonstration. The desktop branch now has typed graph validation/planning, local workspace snapshots, append-only history, a narrow preload bridge, and a Groq chat adapter that keeps credentials in Electron's encrypted main-process storage when OS secure storage is available. This is not yet an autonomous agent executor: graph nodes do not run tools, there is no scheduler/approval engine, and remote workers are not implemented. Never enter credentials into the browser preview.
 
 ## Architecture and engineering plan
 
@@ -18,7 +18,7 @@ P.A.W. is a local-first, cross-platform agent workspace for Linux, Windows and m
 
 ## Development
 
-Requires Node.js 20+.
+Requires Node.js 22.12+ for the current Electron toolchain.
 
 ```sh
 npm install
@@ -27,11 +27,11 @@ npm run typecheck
 npm run build
 ```
 
-The repository does not yet contain a committed package-lock.json. Until one is added and clean npm ci is verified, dependency installation is not fully reproducible.
+The CI workflow bootstraps and commits `package-lock.json` once, then enforces `npm ci`. Treat the lockfile migration as complete only after the resulting workflow run passes.
 
 ## GitHub automation
 
-- CI runs typecheck and a production build on pull requests and main pushes.
+- CI runs typecheck, graph runtime unit tests and a production build on pull requests and main pushes.
 - Security checks run Gitleaks secret scanning and npm audit; the audit report is retained as an artifact.
 - Dependabot proposes weekly npm dependency updates and monthly GitHub Actions updates.
 - Pull requests and bug/feature reports use structured templates.
@@ -41,4 +41,4 @@ These are an initial operational baseline, not full release certification. See [
 
 ## Security
 
-Never commit API keys, tokens, private keys or credentials. Provider secrets must stay outside renderer code and browser previews. See [SECURITY.md](SECURITY.md) and the [security model](docs/SECURITY_MODEL.md).
+Never commit API keys, tokens, private keys or credentials. Provider secrets must stay outside renderer code and browser previews. Groq credentials are sent only through the desktop preload bridge and encrypted by Electron `safeStorage`; if OS encryption is unavailable, saving credentials is refused. See [SECURITY.md](SECURITY.md) and the [security model](docs/SECURITY_MODEL.md).
