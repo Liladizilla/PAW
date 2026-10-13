@@ -112,6 +112,8 @@ export function validateGraph(graph: GraphDefinition): GraphIssue[] {
     }
   }
 
+  if (issues.some(issue => issue.code === "INVALID_SHAPE" || issue.code === "INVALID_ID")) return issues;
+
   const cycle = findCycle(graph.nodes, graph.edges);
   if (cycle.length) issues.push({ code: "CYCLE", path: "edges", message: `Directed cycle detected: ${cycle.join(" -> ")}.` });
   return issues;
