@@ -62,11 +62,11 @@ function registerRuntimeIpc() {
         (value.model !== undefined && typeof value.model !== 'string')) throw new Error('Invalid chat input.')
     return groqChat({ prompt: value.prompt, system: value.system as string | undefined, model: value.model as string | undefined })
   })
-  ipcMain.handle('paw:runtime-status', () => ({
+  ipcMain.handle('paw:runtime-status', async () => ({
     connected: true,
     mode: 'local-persistence-only',
     executionEnabled: false,
-    providerConfigured: false,
+    providerConfigured: (await groqProviderStatus()).configured,
     workspaceId: WORKSPACE_ID
   }))
   ipcMain.handle('paw:workspace:load', () => loadWorkspace(WORKSPACE_ID))
