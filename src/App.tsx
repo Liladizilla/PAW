@@ -1,14 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
 import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, Search, Send, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
 import { ArcRotateCamera, Color3, Engine, HemisphericLight, MeshBuilder, PBRMaterial, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
+import type { GraphDefinition } from './runtime/graph'
 
 type Agent = { id:string; name:string; role:string; color:string; x:number; z:number; state:string; task:string }
+type RunRecord = Awaited<ReturnType<typeof window.paw.createRun>>
 const agents:Agent[] = [
   {id:'orchestrator',name:'ORCHESTRATOR',role:'Team coordinator',color:'#d5e5ff',x:0,z:0,state:'READY',task:'Waiting for a real runtime connection'},
   {id:'research',name:'RESEARCH UNIT',role:'Research agent',color:'#a6a5ff',x:-5,z:-2.5,state:'IDLE',task:'No task assigned'},
   {id:'builder',name:'BUILD ENGINE',role:'Coding agent',color:'#5de0c2',x:4.5,z:-2,state:'IDLE',task:'No task assigned'},
   {id:'validator',name:'VALIDATOR',role:'Testing agent',color:'#ffbd78',x:.5,z:4,state:'IDLE',task:'No task assigned'}
 ]
+const demoGraph: GraphDefinition = {
+  schemaVersion: 1,
+  id: 'local-smoke-test',
+  nodes: [
+    { id: 'source', type: 'text.constant', outputs: { value: { type: 'text', required: true } }, config: { value: 'P.A.W. local runtime' } },
+    { id: 'uppercase', type: 'text.uppercase', inputs: { text: { type: 'text', required: true } }, outputs: { text: { type: 'text', required: true } } },
+    { id: 'guard', type: 'text.constant', outputs: { value: { type: 'text', required: true } }, config: { value: 'GUARDED' } },
+    { id: 'result', type: 'text.concat', inputs: { left: { type: 'text', required: true }, right: { type: 'text', required: true } }, outputs: { text: { type: 'text', required: true } }, config: { separator: ' / ' } }
+  ],
+  edges: [
+    { id: 'source-to-uppercase', from: { nodeId: 'source', port: 'value' }, to: { nodeId: 'uppercase', port: 'text' } },
+    { id: 'uppercase-to-result', from: { nodeId: 'uppercase', port: 'text' }, to: { nodeId: 'result', port: 'left' } },
+    { id: 'guard-to-result', from: { nodeId: 'guard', port: 'value' }, to: { nodeId: 'result', port: 'right' } }
+  ]
+}
 function World({onSelect}:{onSelect:(id:string)=>void}) {
   const canvas=useRef<HTMLCanvasElement>(null)
   useEffect(()=>{
@@ -46,10 +63,14 @@ export default function App(){
   const [approvalAction,setApprovalAction]=useState('')
   const [approvalSummary,setApprovalSummary]=useState('')
   const [approvalMessage,setApprovalMessage]=useState('Approval storage is available in the desktop app only.')
+  const [activeRun,setActiveRun]=useState<RunRecord|null>(null)
+  const [runBusy,setRunBusy]=useState(false)
+  const [runMessage,setRunMessage]=useState('Run the local smoke test to exercise graph validation, scheduling and durable run history.')
   useEffect(()=>{
     let cancelled=false
     if(!window.paw?.providerStatus){setProviderMessage('Desktop runtime required. Browser preview cannot store secrets or call Groq.');return}
     window.paw.providerStatus().then(status=>{if(!cancelled){setProviderConfigured(status.configured);setProviderMessage(status.configured?'Groq key stored securely on this device.':'Groq key not configured.')}}).catch(()=>{if(!cancelled)setProviderMessage('Provider status unavailable.')})
+    window.paw.runtimeStatus().then(status=>{if(!cancelled)setRunMessage(status.executionEnabled?'Local guarded executor connected.':'Runtime is connected but execution is disabled.')}).catch(()=>{if(!cancelled)setRunMessage('Desktop runtime status unavailable.')})
     window.paw.listApprovals('pending').then(items=>{if(!cancelled)setApprovals(items)}).catch(()=>{if(!cancelled)setApprovalMessage('Could not load approval records.')})
     return()=>{cancelled=true}
   },[])
@@ -85,12 +106,50 @@ export default function App(){
     catch(error){setProviderMessage(error instanceof Error?error.message:'Groq request failed.')}
     finally{setProviderBusy(false)}
   }
+  const runDemo=async()=>{
+    if(!window.paw?.executeGraph){setRunMessage('Open the installed desktop app to run the local executor. The browser preview cannot invoke privileged runtime IPC.');return}
+    setRunBusy(true)
+    try{
+      const validation=await window.paw.validateGraph(demoGraph)
+      if(!validation.valid){setRunMessage('Demo graph validation failed: '+validation.issues.map(issue=>issue.message).join(' '));return}
+      const run=await window.paw.executeGraph({graph:demoGraph,workspaceId:'default',concurrency:3})
+      setActiveRun(run)
+      setRunMessage('Run '+run.id.slice(0,8)+' accepted. Polling durable run state…')
+    }catch(error){setRunMessage(error instanceof Error?error.message:'Could not start the local graph run.')}
+    finally{setRunBusy(false)}
+  }
+  const controlRun=async(action:'pause'|'resume'|'cancel')=>{
+    if(!activeRun)return
+    try{
+      if(action==='pause')await window.paw.pauseGraph(activeRun.id)
+      else if(action==='resume')await window.paw.resumeGraph(activeRun.id)
+      else await window.paw.cancelGraph(activeRun.id)
+      setRunMessage(action==='pause'?'Pause requested. Active local handlers reach a safe boundary before scheduling stops.':action==='resume'?'Resume requested.':'Cancellation requested.')
+    }catch(error){setRunMessage(error instanceof Error?error.message:'Could not control the run.')}
+  }
+  useEffect(()=>{
+    if(!activeRun?.id||!window.paw?.listRuns)return
+    let cancelled=false
+    const refresh=async()=>{
+      try{
+        const records=await window.paw.listRuns(activeRun.workspaceId)
+        const latest=records.find(item=>item.id===activeRun.id)
+        if(!cancelled&&latest){
+          setActiveRun(latest)
+          if(['succeeded','failed','cancelled','needs_recovery'].includes(latest.status))setRunMessage('Run '+latest.id.slice(0,8)+' finished with status: '+latest.status+'. Inspect the history panel for event details.')
+        }
+      }catch(error){if(!cancelled)setRunMessage(error instanceof Error?error.message:'Could not refresh run status.')}
+    }
+    void refresh()
+    const timer=window.setInterval(()=>void refresh(),1000)
+    return()=>{cancelled=true;window.clearInterval(timer)}
+  },[activeRun?.id,activeRun?.workspaceId,activeRun?.status])
   const select=(id:string)=>setSelected(id)
   const active=agents.find(a=>a.id===selected)??agents[0]
   return <main className="app">
     <header className="top"><div className="brand"><span className="brandicon"><Boxes size={21}/></span><div><b>P.A.W.</b><small>PERSONAL AGENT WORKSPACE</small></div></div><span className="workspace-tag"><i/> LOCAL WORKSPACE</span><div className="topright"><Settings2 size={16}/><span className="avatar">P</span></div></header>
     <nav className="rail"><Network/><Cpu/><Workflow/><BrainCircuit/><TerminalSquare/><div className="spacer"/><ShieldCheck/></nav>
-    <section className="layout"><aside className="left"><div className="eyebrow">WORKSPACE</div><h1>Agent network</h1><label className="search"><Search size={14}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find agents"/></label><div className="eyebrow section">NETWORK OBJECTS <span>{agents.length.toString().padStart(2,'0')}</span></div>{agents.filter(a=>(a.name+a.role).toLowerCase().includes(query.toLowerCase())).map(a=><button key={a.id} className={'agent '+(selected===a.id?'chosen':'')} onClick={()=>select(a.id)}><span className="glyph" style={{color:a.color}}><Cpu size={16}/></span><span><b>{a.name}</b><small>{a.role}</small></span><i className={a.state.toLowerCase()}/></button>)}<div className="runtime"><div className="eyebrow">RUNTIME STATUS</div><b><Activity size={15}/> Executor disabled</b><small>Persistence and provider IPC are available. No agent executor is running.</small></div></aside>
+    <section className="layout"><aside className="left"><div className="eyebrow">WORKSPACE</div><h1>Agent network</h1><label className="search"><Search size={14}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find agents"/></label><div className="eyebrow section">NETWORK OBJECTS <span>{agents.length.toString().padStart(2,'0')}</span></div>{agents.filter(a=>(a.name+a.role).toLowerCase().includes(query.toLowerCase())).map(a=><button key={a.id} className={'agent '+(selected===a.id?'chosen':'')} onClick={()=>select(a.id)}><span className="glyph" style={{color:a.color}}><Cpu size={16}/></span><span><b>{a.name}</b><small>{a.role}</small></span><i className={a.state.toLowerCase()}/></button>)}<div className="runtime"><div className="eyebrow">RUNTIME STATUS</div><b><Activity size={15}/> Local executor available</b><small>Deterministic typed nodes run in the desktop main process. External tools remain unavailable unless registered behind policy.</small><button className="provider-button primary" onClick={runDemo} disabled={runBusy||!!(activeRun&&['queued','running','pause_requested','paused','cancel_requested'].includes(activeRun.status))}>{runBusy?'Starting…':'Run local smoke test'}</button><small>{runMessage}</small>{activeRun&&<><small>RUN {activeRun.id.slice(0,8)} · {activeRun.status.toUpperCase()}</small>{activeRun&&['running','pause_requested'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('pause')}>Pause</button>}{activeRun&&activeRun.status==='paused'&&<button className="provider-button" onClick={()=>void controlRun('resume')}>Resume</button>}{activeRun&&['running','pause_requested','paused'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('cancel')}>Cancel run</button>}</>}</div></aside>
     <section className="viewport"><div className="viewhead"><div><div className="eyebrow">SPATIAL WORKSPACE / DEFAULT ZONE</div><h2>Coordination field</h2></div><span className="spatial"><Layers3 size={13}/> SPATIAL <Maximize2 size={14}/></span></div><div className="scene"><World onSelect={select}/><div className="scene-label">PHYSICS PREVIEW / {agents.length} NODES</div><div className="hint">Drag to orbit Â· Scroll to zoom Â· Click a machine to inspect</div></div><footer className="viewfoot"><span>â READY <b>01</b></span><span>â IDLE <b>03</b></span><span className="spacer"/>QUALITY <b>ADAPTIVE</b> Â· CAMERA <b>FREE</b></footer></section>
     <aside className="inspector"><div className="eyebrow">OBJECT INSPECTOR</div><h2>Agent details</h2><div className="object"><span style={{color:active.color}}><Cpu size={24}/></span><div><b>{active.name}</b><small>{active.role}</small></div><i>{active.state}</i></div><div className="section"><div className="eyebrow">IDENTITY</div><p><span>Node ID</span><code>{active.id}</code></p><p><span>Execution</span><b>Not connected</b></p><p><span>Autonomy</span><b>Not configured</b></p></div><div className="section"><div className="eyebrow">CURRENT TASK</div><div className="task"><b>Task summary</b><p>{active.task}</p><small>No live reasoning or tool activity available.</small></div></div><div className="section"><div className="eyebrow">CONNECTIONS</div><p><span>Dependencies</span><b>{active.id==='orchestrator'?'3 downstream':'1 upstream'}</b></p><p><span>Inputs / outputs</span><b>Not available</b></p></div><div className="section"><div className="eyebrow">OBSERVABILITY</div><div className="task">Execution logs appear here when a real runtime is connected.</div></div><div className="section approval-panel"><div className="eyebrow"><ShieldCheck size={12}/> PERSISTENT APPROVAL QUEUE <span>{approvals.length.toString().padStart(2,'0')}</span></div><p className="approval-note">Manual approval ledger. Approving a record does not execute its described action.</p><label className="provider-label">ACTION</label><input className="provider-input" value={approvalAction} onChange={e=>setApprovalAction(e.target.value)} placeholder="e.g. write-file"/><label className="provider-label">SUMMARY</label><textarea className="provider-input provider-prompt" value={approvalSummary} onChange={e=>setApprovalSummary(e.target.value)} placeholder="Describe the proposed operation and its scope…" rows={2}/><button className="provider-button" onClick={createApproval}>Create pending approval</button><div className="approval-list">{approvals.map(item=><article className="approval-item" key={item.id}><b>{item.action}</b><p>{item.summary}</p><small>{new Date(item.createdAt).toLocaleString()}</small><div><button onClick={()=>decideApproval(item.id,'approved')}>Approve</button><button onClick={()=>decideApproval(item.id,'denied')}>Deny</button></div></article>)}</div><small className="approval-message">{approvalMessage}</small></div><div className="section provider-panel"><div className="eyebrow"><KeyRound size={12}/> MODEL PROVIDER / GROQ</div><div className="provider-status"><i className={providerConfigured?'connected':''}/>{providerMessage}</div><label className="provider-label">API KEY <span>ENCRYPTED AT REST</span></label><input className="provider-input" type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="gsk_… (desktop app only)"/><button className="provider-button" onClick={saveGroq} disabled={providerBusy||!apiKey.trim()}>Store credential securely</button><label className="provider-label">PROMPT</label><textarea className="provider-input provider-prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Ask the Groq model something…" rows={3}/><button className="provider-button primary" onClick={askGroq} disabled={providerBusy||!providerConfigured||!prompt.trim()}><Send size={12}/>{providerBusy?'Working…':'Send prompt'}</button>{answer&&<div className="provider-answer">{answer}</div>}</div><div className="safe">Agent execution remains disabled. Groq chat is an isolated provider test, not autonomous tool execution.</div></aside></section>
     <footer className="status"><span>â  DEVELOPMENT PREVIEW</span><span>EXECUTOR <b>DISABLED</b></span><span>MODEL <b>{providerConfigured?'GROQ CONFIGURED':'NOT CONFIGURED'}</b></span><span className="spacer"/>v0.1.0 Â· Electron Â· Babylon.js</footer>
