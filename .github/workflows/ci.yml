@@ -6,7 +6,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -17,30 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
-          persist-credentials: true
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
-      - name: Install dependencies and bootstrap lockfile
-        run: npm install
-      - name: Commit reproducible lockfile updates
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('package-lock.json') != ''
-        shell: bash
-        env:
-          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          if ! git diff --cached --quiet; then
-            git commit -m "build: refresh reproducible npm lockfile"
-            git pull --rebase origin "${BRANCH_NAME}"
-            git push origin "HEAD:${BRANCH_NAME}"
-          fi
-      - name: Enforce lockfile install
+      - name: Install locked dependencies
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
