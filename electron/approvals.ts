@@ -17,6 +17,15 @@ export interface ApprovalRecord {
 }
 const workspaceId = "default";
 const storePath = () => join(app.getPath("userData"), "paw", "approvals.json");
+let mutationTail: Promise<void> = Promise.resolve();
+async function serializeMutation<T>(operation: () => Promise<T>): Promise<T> {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const previous = mutationTail;
+  mutationTail = previous.then(() => gate, () => gate);
+  await previous;
+  try { return await operation(); } finally { release(); }
+}
 const validText = (value: unknown, max: number): value is string =>
   typeof value === "string" && value.trim().length > 0 && value.length <= max;
 
@@ -53,6 +62,7 @@ export async function requestApproval(input: { action: string; summary: string; 
       (input.requestedBy !== undefined && !validText(input.requestedBy, 120))) {
     throw new Error("Approval action, summary and requester must be valid bounded text.");
   }
+  return serializeMutation(async () => {
   const records = await readRecords();
   if (records.length >= 5000) throw new Error("Approval history limit reached. Export or archive old records first.");
   const record: ApprovalRecord = {
@@ -67,6 +77,7 @@ export async function requestApproval(input: { action: string; summary: string; 
   records.push(record);
   await writeRecords(records);
   return record;
+  });
 }
 
 export async function decideApproval(id: string, decision: ApprovalDecision, note?: string): Promise<ApprovalRecord> {
@@ -74,6 +85,7 @@ export async function decideApproval(id: string, decision: ApprovalDecision, not
       (note !== undefined && (typeof note !== "string" || note.length > 1000))) {
     throw new Error("Invalid approval decision.");
   }
+  return serializeMutation(async () => {
   const records = await readRecords();
   const index = records.findIndex(record => record.id === id && record.workspaceId === workspaceId);
   if (index < 0) throw new Error("Approval request not found.");
@@ -87,4 +99,5 @@ export async function decideApproval(id: string, decision: ApprovalDecision, not
   records[index] = updated;
   await writeRecords(records);
   return updated;
+  });
 }
