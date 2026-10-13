@@ -1,10 +1,25 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import { appendHistoryEvent, loadWorkspace, readHistory, saveWorkspace } from './persistence'
+import { clearGroqApiKey, configureGroqApiKey, groqChat, groqProviderStatus } from './providers/groq'
 
 const WORKSPACE_ID = 'default'
 
 function registerRuntimeIpc() {
+  ipcMain.handle('paw:provider:status', () => groqProviderStatus())
+  ipcMain.handle('paw:provider:configure-groq', (_event, key: unknown) => {
+    if (typeof key !== 'string') throw new Error('API key must be text.')
+    return configureGroqApiKey(key)
+  })
+  ipcMain.handle('paw:provider:clear-groq', () => clearGroqApiKey())
+  ipcMain.handle('paw:provider:chat', (_event, input: unknown) => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Chat input must be an object.')
+    const value = input as { prompt?: unknown; system?: unknown; model?: unknown }
+    if (typeof value.prompt !== 'string' ||
+        (value.system !== undefined && typeof value.system !== 'string') ||
+        (value.model !== undefined && typeof value.model !== 'string')) throw new Error('Invalid chat input.')
+    return groqChat({ prompt: value.prompt, system: value.system as string | undefined, model: value.model as string | undefined })
+  })
   ipcMain.handle('paw:runtime-status', () => ({
     connected: true,
     mode: 'local-persistence-only',
