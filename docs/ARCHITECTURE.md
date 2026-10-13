@@ -38,3 +38,11 @@ Graph planning is not graph execution. There is no autonomous tool broker, polic
 
 ## Open engineering work
 Define event schemas, idempotency keys, graph port typing, worker authentication, sync conflict resolution, plugin signing, data migration, OS-specific secret storage and performance budgets.
+
+
+## Groq graph proposals (implemented, review-only)
+
+- The Groq provider stores credentials through Electron `safeStorage` and refuses insecure fallback backends.
+- `paw:provider:propose-graph` asks the configured model for one JSON graph, parses the response without evaluating it, validates graph structure and limits node types to `text.constant`, `text.uppercase`, `text.concat`, and `json.stringify`.
+- The preload exposes this as `proposeGraphWithGroq`. The result includes validation issues and `requiresReview: true`; invalid proposals return no graph.
+- This endpoint does not execute or persist the proposed graph. A user-facing proposal review/acceptance UI and explicit save-to-workspace action are the next step. Model output is untrusted input.
