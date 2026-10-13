@@ -3,10 +3,33 @@ import { join } from 'node:path'
 import { appendHistoryEvent, loadWorkspace, readHistory, saveWorkspace } from './persistence'
 import { clearGroqApiKey, configureGroqApiKey, groqChat, groqProviderStatus } from './providers/groq'
 import { decideApproval, listApprovals, requestApproval } from './approvals'
+import { createRun, listRuns, resolveRunRecovery, transitionRun } from './runs'
 
 const WORKSPACE_ID = 'default'
 
 function registerRuntimeIpc() {
+  ipcMain.handle('paw:runs:list', (_event, workspaceId: unknown) => listRuns(workspaceId === undefined ? 'default' : String(workspaceId)))
+  ipcMain.handle('paw:runs:create', (_event, input: unknown) => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Run input must be an object.')
+    const value = input as { graphId?: unknown; workspaceId?: unknown }
+    if (typeof value.graphId !== 'string' || (value.workspaceId !== undefined && typeof value.workspaceId !== 'string')) throw new Error('Invalid run input.')
+    return createRun({ graphId: value.graphId, workspaceId: value.workspaceId as string | undefined })
+  })
+  ipcMain.handle('paw:runs:transition', (_event, input: unknown) => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Run transition must be an object.')
+    const value = input as { id?: unknown; status?: unknown; reason?: unknown }
+    const statuses = ['queued','running','pause_requested','paused','cancel_requested','cancelled','succeeded','failed','needs_recovery']
+    if (typeof value.id !== 'string' || typeof value.status !== 'string' || !statuses.includes(value.status) ||
+        (value.reason !== undefined && typeof value.reason !== 'string')) throw new Error('Invalid run transition.')
+    return transitionRun(value.id, value.status as import('../src/runtime/run-state').RunStatus, value.reason as string | undefined)
+  })
+  ipcMain.handle('paw:runs:recover', (_event, input: unknown) => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Run recovery must be an object.')
+    const value = input as { id?: unknown; resolution?: unknown; note?: unknown }
+    if (typeof value.id !== 'string' || (value.resolution !== 'retry' && value.resolution !== 'abandon') ||
+        (value.note !== undefined && typeof value.note !== 'string')) throw new Error('Invalid run recovery.')
+    return resolveRunRecovery(value.id, value.resolution, value.note as string | undefined)
+  })
   ipcMain.handle('paw:approvals:list', (_event, status: unknown) => {
     if (status !== undefined && status !== 'pending' && status !== 'approved' && status !== 'denied') throw new Error('Invalid approval status filter.')
     return listApprovals(status as 'pending' | 'approved' | 'denied' | undefined)
