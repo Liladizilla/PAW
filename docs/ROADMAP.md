@@ -7,16 +7,18 @@ Architecture and acceptance criteria are defined before runtime implementation. 
 - [x] Record product requirements and initial architecture decisions.
 - [x] Define module ownership, trust boundaries, graph semantics and provider adapter direction.
 - [x] Specify logical data model, event contract, security model, test strategy and pipeline contract.
-- [ ] Review contracts against the first implementation and add versioned runtime schemas.
+- [x] Add a versioned typed graph contract and runtime validation/planning API.
+- [ ] Review remaining contracts against implementation and add durable schema migration rules.
 - [ ] Create architecture decision records for any changed decisions.
 
 Acceptance: reviewers can identify each module's authority, API boundary, data ownership, failure semantics and required tests without guessing.
 
 ## M1 — Reproducible foundation and CI
 
-- [ ] Commit package lockfile; use npm ci in every workflow.
+- [ ] Commit package lockfile through the CI bootstrap and verify subsequent clean npm ci runs.
 - [ ] Verify typecheck, renderer build and desktop build from a clean checkout.
-- [ ] Add lint/format, unit-test runner, dependency audit and secret scanning.
+- [x] Add a TypeScript unit-test runner, dependency audit and secret scanning.
+- [ ] Add lint/format and require a clean lockfile-backed CI run.
 - [ ] Validate Electron security settings, preload allowlist and restrictive CSP.
 - [ ] Add CI artifact retention and useful failure reports.
 - [ ] Establish reference-machine startup, memory and renderer performance baselines.
@@ -25,10 +27,13 @@ Acceptance: clean install and all required CI gates pass; current preview remain
 
 ## M2 — Contracts, persistence and local runtime
 
-- [ ] Implement shared versioned contracts and runtime boundary validation.
-- [ ] Add SQLite migrations, workspace service, artifact store and event journal.
+- [x] Implement versioned graph contracts and boundary validation for graph inputs.
+- [ ] Expand versioned schemas to run events, approvals, tools and provider payloads.
+- [x] Add local workspace snapshot persistence and append-only per-workspace event history (JSON/NDJSON MVP).
+- [ ] Add SQLite migrations, artifact store, retention/compaction and crash-recovery tests.
 - [ ] Implement snapshots, durable approval records and manual recovery.
-- [ ] Implement graph registry, typed ports, validator and bounded loop constructs.
+- [x] Implement typed ports, graph validation, cycle detection and deterministic topological planning.
+- [ ] Add graph registry, bounded loops, scheduler, policy engine, idempotency and cancellation.
 - [ ] Implement policy engine, scheduler, node lifecycle, idempotency and cancellation.
 - [ ] Add deterministic fake provider/tool adapters and crash/fault tests.
 
@@ -36,8 +41,9 @@ Acceptance: deterministic graph runs survive restart; approvals persist; replay 
 
 ## M3 — Provider and guarded tools
 
-- [ ] Implement provider registry and Groq adapter first.
-- [ ] Add secure OS credential storage, redaction and a connection-test flow.
+- [x] Implement the first Groq chat adapter behind main-process IPC.
+- [x] Add encrypted credential storage through Electron safeStorage and a basic Groq chat test panel.
+- [ ] Verify OS keyring behavior on Linux/Windows/macOS and add structured log redaction.
 - [ ] Add bounded tool broker and capability manifests.
 - [ ] Implement read-only workspace/file tools, then narrowly scoped writes.
 - [ ] Add shell, Git/GitHub, browser and HTTP tools only behind per-tool policy.
@@ -87,4 +93,4 @@ Acceptance: all release gates in docs/PIPELINES.md and docs/TEST_STRATEGY.md are
 
 ## Current reality
 
-The existing repository is an Electron/React/Babylon.js scaffold with a preview interface and basic CI/release workflows. The target architecture above is not yet implemented. This distinction is intentional: documentation describes the intended contract, not a claim that features already work.
+The repository now includes a typed graph validator/planner, local JSON workspace snapshots, append-only event history, guarded IPC and a Groq provider path with encrypted credential storage. It still does not execute graph nodes, invoke tools autonomously, persist approvals, implement a scheduler, or provide remote workers. The browser preview cannot use the desktop provider bridge. The target architecture remains larger than the current implementation.
