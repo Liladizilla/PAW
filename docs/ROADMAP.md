@@ -31,10 +31,10 @@ Acceptance: clean install and all required CI gates pass; current preview remain
 - [ ] Expand versioned schemas to run events, approvals, tools and provider payloads.
 - [x] Add local workspace snapshot persistence and append-only per-workspace event history (JSON/NDJSON MVP).
 - [ ] Add SQLite migrations, artifact store, retention/compaction and crash-recovery tests.
-- [ ] Implement snapshots, durable approval records and manual recovery.
+- [x] Implement workspace snapshots, durable approval records and manual run recovery (JSON/NDJSON MVP; not yet SQLite).
 - [x] Implement typed ports, graph validation, cycle detection and deterministic topological planning.
-- [ ] Add graph registry, bounded loops, scheduler, policy engine, idempotency and cancellation.
-- [ ] Implement policy engine, scheduler, node lifecycle, idempotency and cancellation.
+- [x] Add a bounded-concurrency DAG scheduler, node lifecycle events, cooperative cancellation, pause/resume boundaries and fail-closed policy/approval hooks.
+- [ ] Add graph registry, bounded loops, production policy engine, idempotency keys and durable per-node replay.
 - [ ] Add deterministic fake provider/tool adapters and crash/fault tests.
 
 Acceptance: deterministic graph runs survive restart; approvals persist; replay does not cause side effects; uncertain operations require manual recovery.
@@ -93,4 +93,4 @@ Acceptance: all release gates in docs/PIPELINES.md and docs/TEST_STRATEGY.md are
 
 ## Current reality
 
-The repository now includes a typed graph validator/planner, local JSON workspace snapshots, append-only event history, durable approval records, a persisted run lifecycle state machine with manual recovery, guarded IPC and a Groq provider path with encrypted credential storage. It still does not execute graph nodes, invoke tools autonomously, or provide remote workers. The browser preview cannot use the desktop provider bridge. The target architecture remains larger than the current implementation.
+The repository now includes a typed graph validator/planner, a bounded-concurrency local DAG executor, typed input/output checks, pause/resume/cancel controls, persisted run lifecycle state, recent event history in the desktop UI, local workspace snapshots, append-only event history, durable approval records, manual recovery, guarded IPC and a Groq provider path with encrypted credential storage. The first registered executor nodes are deterministic local text/JSON transforms. External tools, autonomous model-driven planning, idempotency and remote workers remain unimplemented. The browser preview cannot invoke the privileged desktop runtime bridge. The target architecture remains larger than the current implementation.
