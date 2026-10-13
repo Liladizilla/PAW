@@ -24,7 +24,7 @@ jobs:
           node-version: 22
       - name: Install dependencies and bootstrap lockfile
         run: npm install
-      - name: Commit reproducible lockfile once
+      - name: Commit reproducible lockfile updates
         if: github.event_name == 'pull_request' && hashFiles('package-lock.json') != ''
         shell: bash
         env:
@@ -32,9 +32,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if ! git ls-tree -r --name-only HEAD | grep -qx 'package-lock.json'; then
-            git add package-lock.json
-            git commit -m "build: add reproducible npm lockfile"
+          git add package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "build: refresh reproducible npm lockfile"
             git pull --rebase origin "${BRANCH_NAME}"
             git push origin "HEAD:${BRANCH_NAME}"
           fi
