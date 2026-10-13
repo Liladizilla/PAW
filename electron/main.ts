@@ -2,10 +2,29 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import { appendHistoryEvent, loadWorkspace, readHistory, saveWorkspace } from './persistence'
 import { clearGroqApiKey, configureGroqApiKey, groqChat, groqProviderStatus } from './providers/groq'
+import { decideApproval, listApprovals, requestApproval } from './approvals'
 
 const WORKSPACE_ID = 'default'
 
 function registerRuntimeIpc() {
+  ipcMain.handle('paw:approvals:list', (_event, status: unknown) => {
+    if (status !== undefined && status !== 'pending' && status !== 'approved' && status !== 'denied') throw new Error('Invalid approval status filter.')
+    return listApprovals(status as 'pending' | 'approved' | 'denied' | undefined)
+  })
+  ipcMain.handle('paw:approvals:request', (_event, input: unknown) => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Approval request must be an object.')
+    const value = input as { action?: unknown; summary?: unknown; requestedBy?: unknown }
+    if (typeof value.action !== 'string' || typeof value.summary !== 'string' ||
+        (value.requestedBy !== undefined && typeof value.requestedBy !== 'string')) throw new Error('Invalid approval request.')
+    return requestApproval({ action: value.action, summary: value.summary, requestedBy: value.requestedBy as string | undefined })
+  })
+  ipcMain.handle('paw:approvals:decide', (_event, input: unknown) => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Approval decision must be an object.')
+    const value = input as { id?: unknown; decision?: unknown; note?: unknown }
+    if (typeof value.id !== 'string' || (value.decision !== 'approved' && value.decision !== 'denied') ||
+        (value.note !== undefined && typeof value.note !== 'string')) throw new Error('Invalid approval decision.')
+    return decideApproval(value.id, value.decision, value.note as string | undefined)
+  })
   ipcMain.handle('paw:provider:status', () => groqProviderStatus())
   ipcMain.handle('paw:provider:configure-groq', (_event, key: unknown) => {
     if (typeof key !== 'string') throw new Error('API key must be text.')
