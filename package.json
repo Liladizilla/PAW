@@ -33,7 +33,8 @@
     "electron-vite": "^3.0.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
-    "tsx": "^4.20.6"
+    "tsx": "^4.20.6",
+    "rollup": "4.53.3"
   },
   "build": {
     "appId": "dev.paw.workspace",
