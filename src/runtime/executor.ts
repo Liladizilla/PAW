@@ -32,8 +32,10 @@ export interface ExecutionEvent {
   message?: string;
 }
 
+export type NodeHandler = RegisteredNodeHandler["run"];
+
 export interface GraphExecutionOptions {
-  handlers: Readonly<Record<string, RegisteredNodeHandler>>;
+  handlers: Readonly<Record<string, RegisteredNodeHandler | NodeHandler>>;
   concurrency?: number;
   signal?: AbortSignal;
   authorize?: (request: PolicyRequest) => Promise<PolicyDecision> | PolicyDecision;
@@ -125,11 +127,12 @@ export async function executeGraph(
 
   const runNode = async (node: GraphNode): Promise<Record<string, unknown>> => {
     if (signal.aborted) throw new NodeExecutionError("Execution was cancelled.", node.id, "ABORTED");
-    const registered = options.handlers[node.type];
-    if (!registered || typeof registered.run !== "function") {
+    const registration = options.handlers[node.type];
+    if (!registration || (typeof registration !== "function" && typeof registration.run !== "function")) {
       throw new NodeExecutionError(`No handler is registered for node type "${node.type}".`, node.id, "HANDLER_MISSING");
     }
 
+    const registered: RegisteredNodeHandler = typeof registration === "function" ? { run: registration } : registration;
     const effect = registered.effect ?? "pure";
     const capability = registered.capability ?? (effect === "external" ? node.type : "compute");
     const request: PolicyRequest = { graphId: graph.id, nodeId: node.id, nodeType: node.type, effect, capability };
