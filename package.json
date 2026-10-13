@@ -1,0 +1,44 @@
+{
+  "name": "paw-personal-agent-workspace",
+  "version": "0.1.0",
+  "private": false,
+  "description": "P.A.W. — Personal Agent Workspace",
+  "author": "Liladizilla",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "package": "electron-vite build && electron-builder",
+    "package:linux": "electron-vite build && electron-builder --linux AppImage deb",
+    "package:windows": "electron-vite build && electron-builder --win nsis",
+    "package:mac": "electron-vite build && electron-builder --mac dmg zip"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^8.20.0",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  },
+  "build": {
+    "appId": "dev.paw.workspace",
+    "productName": "P.A.W.",
+    "directories": { "output": "release" },
+    "files": ["out/**/*", "package.json"],
+    "linux": { "target": ["AppImage", "deb"], "category": "Development" },
+    "win": { "target": ["nsis"] },
+    "mac": { "target": ["dmg", "zip"] }
+  }
+}
