@@ -6,30 +6,45 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   validate:
-    name: Typecheck and build
+    name: Typecheck, tests and build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          persist-credentials: true
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install dependencies
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies and bootstrap lockfile
         run: npm install
-      - name: Export generated lockfile for reproducibility migration
-        uses: actions/upload-artifact@v4
-        with:
-          name: paw-lockfile-bootstrap-${{ github.sha }}
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 3
+      - name: Commit reproducible lockfile once
+        if: github.event_name == 'pull_request' && hashFiles('package-lock.json') != ''
+        shell: bash
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git ls-tree -r --name-only HEAD | grep -qx 'package-lock.json'; then
+            git add package-lock.json
+            git commit -m "build: add reproducible npm lockfile"
+            git push origin "HEAD:${BRANCH_NAME}"
+          fi
+      - name: Enforce lockfile install
+        run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Unit tests
+        run: npm test
       - name: Production build
         run: npm run build
       - uses: actions/upload-artifact@v4
