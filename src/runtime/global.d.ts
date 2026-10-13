@@ -1,3 +1,4 @@
+export interface PawProviderStatus { provider: 'groq'; configured: boolean; model: string; }
 export interface PawRuntimeStatus {
   connected: boolean;
   mode: string;
@@ -24,6 +25,10 @@ declare global {
       platform: string;
       version: string;
       runtimeStatus: () => Promise<PawRuntimeStatus>;
+      providerStatus: () => Promise<PawProviderStatus>;
+      configureGroq: (key: string) => Promise<{ configured: boolean }>;
+      clearGroq: () => Promise<{ configured: false }>;
+      chatWithGroq: (input: { prompt: string; system?: string; model?: string }) => Promise<{ text: string; model: string }>;
       loadWorkspace: () => Promise<PawWorkspaceSnapshot>;
       saveWorkspace: (data: Record<string, unknown>) => Promise<PawWorkspaceSnapshot>;
       appendHistoryEvent: (event: { type: string; payload?: Record<string, unknown> }) => Promise<PawHistoryEvent>;
