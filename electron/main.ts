@@ -50,7 +50,7 @@ async function settleRun(runId: string, workspaceId: string, target: 'succeeded'
     await transitionRun(runId, 'running', 'Execution resumed to settle a completed result.')
     status = 'running'
   }
-  if (status === 'running' || status === 'cancel_requested' || status === 'pause_requested') {
+  if (status === 'running' || status === 'cancel_requested') {
     return transitionRun(runId, target, reason)
   }
   return run
