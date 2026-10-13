@@ -13,6 +13,7 @@ P.A.W. is a local-first, cross-platform agent workspace for Linux, Windows and m
 - [Security model](docs/SECURITY_MODEL.md): threat model, secrets, IPC and capability security.
 - [Pipeline design](docs/PIPELINES.md): PR CI, preview, security, packaging and release.
 - [Test strategy](docs/TEST_STRATEGY.md): unit through end-to-end, fault injection and release gates.
+- [Release checklist](docs/RELEASE_CHECKLIST.md): tag, artifact, manual acceptance and rollback gates.
 - [Roadmap](docs/ROADMAP.md): staged implementation and acceptance criteria.
 
 ## Development
@@ -26,11 +27,17 @@ npm run typecheck
 npm run build
 ```
 
-A committed lockfile and clean `npm ci` verification are required before calling the build pipeline reproducible.
+The repository does not yet contain a committed package-lock.json. Until one is added and clean npm ci is verified, dependency installation is not fully reproducible.
 
-## CI/CD
+## GitHub automation
 
-GitHub Actions currently provides basic typecheck/build validation and cross-platform packaging workflows. The full pipeline contract is documented in [PIPELINES.md](docs/PIPELINES.md); security scans, test suites, preview smoke tests and release hardening are not considered complete until implemented and verified in CI.
+- CI runs typecheck and a production build on pull requests and main pushes.
+- Security checks run Gitleaks secret scanning and npm audit; the audit report is retained as an artifact.
+- Dependabot proposes weekly npm dependency updates and monthly GitHub Actions updates.
+- Pull requests and bug/feature reports use structured templates.
+- Version tags trigger Linux, Windows and macOS packaging; GitHub Release publication waits for packaging jobs.
+
+These are an initial operational baseline, not full release certification. See [PIPELINES.md](docs/PIPELINES.md) for gaps still to close.
 
 ## Security
 
