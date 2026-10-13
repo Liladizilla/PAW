@@ -26,7 +26,7 @@ export interface PolicyRequest {
 }
 
 export interface ExecutionEvent {
-  type: "graph.started" | "node.started" | "node.succeeded" | "node.failed" | "node.blocked" | "graph.succeeded" | "graph.failed" | "graph.cancelled";
+  type: "graph.started" | "graph.paused" | "graph.resumed" | "node.started" | "node.succeeded" | "node.failed" | "node.blocked" | "graph.succeeded" | "graph.failed" | "graph.cancelled";
   graphId: string;
   timestamp: string;
   nodeId?: string;
@@ -234,8 +234,18 @@ export async function executeGraph(
 
   try {
     await emit({ type: "graph.started" });
+    let pauseEventSent = false;
     while (pending.size > 0 || running.size > 0) {
-      await waitUntilResumed();
+      if (options.control?.isPaused) {
+        if (!pauseEventSent) {
+          await emit({ type: "graph.paused", message: "Scheduling is paused; active handlers must cooperate to pause mid-node." });
+          pauseEventSent = true;
+        }
+        await waitUntilResumed();
+        if (signal.aborted) continue;
+        await emit({ type: "graph.resumed" });
+        pauseEventSent = false;
+      }
       if (signal.aborted) {
         await Promise.allSettled(running.values());
         await emit({ type: "graph.cancelled", message: "Execution was cancelled." });
