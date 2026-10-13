@@ -1,3 +1,14 @@
+export interface PawApprovalRecord {
+  id: string;
+  workspaceId: string;
+  action: string;
+  summary: string;
+  requestedBy: string;
+  createdAt: string;
+  status: 'pending' | 'approved' | 'denied';
+  decidedAt?: string;
+  decisionNote?: string;
+}
 export interface PawProviderStatus { provider: 'groq'; configured: boolean; model: string; }
 export interface PawRuntimeStatus {
   connected: boolean;
@@ -26,6 +37,9 @@ declare global {
       version: string;
       runtimeStatus: () => Promise<PawRuntimeStatus>;
       providerStatus: () => Promise<PawProviderStatus>;
+      listApprovals: (status?: 'pending' | 'approved' | 'denied') => Promise<PawApprovalRecord[]>;
+      requestApproval: (input: { action: string; summary: string; requestedBy?: string }) => Promise<PawApprovalRecord>;
+      decideApproval: (input: { id: string; decision: 'approved' | 'denied'; note?: string }) => Promise<PawApprovalRecord>;
       configureGroq: (key: string) => Promise<{ configured: boolean }>;
       clearGroq: () => Promise<{ configured: false }>;
       chatWithGroq: (input: { prompt: string; system?: string; model?: string }) => Promise<{ text: string; model: string }>;
