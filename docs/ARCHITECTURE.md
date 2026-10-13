@@ -25,5 +25,14 @@ Initial architecture direction. Detailed protocols and module contracts must be 
 ## IPC security
 Context isolation and Node integration are enabled appropriately: context isolation on, Node integration off, sandbox on. The preload bridge is minimal. Do not expose generic shell, filesystem or arbitrary IPC methods to the renderer.
 
+## Implemented foundation (MVP, not a complete runtime)
+
+- `src/runtime/graph.ts` defines schema-versioned graph/node/edge contracts, typed ports, duplicate/reference/type validation, cycle detection and deterministic topological execution planning.
+- `electron/persistence.ts` stores workspace snapshots with atomic replacement and per-workspace append-only NDJSON history. This is an initial JSON store, not the planned SQLite/event-index implementation.
+- `electron/providers/groq.ts` calls Groq from the Electron main process. API credentials are encrypted with `safeStorage`; configuration fails closed if OS-backed encryption is unavailable. The provider panel is desktop-only.
+- `electron/preload.ts` exposes a narrow, named API rather than generic filesystem or IPC access.
+
+Graph planning is not graph execution. There is no autonomous tool broker, policy engine, approval queue, scheduler, cancellation protocol or remote worker implementation yet.
+
 ## Open engineering work
 Define event schemas, idempotency keys, graph port typing, worker authentication, sync conflict resolution, plugin signing, data migration, OS-specific secret storage and performance budgets.
