@@ -43,7 +43,7 @@ const ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
 
 export function validateGraph(graph: GraphDefinition): GraphIssue[] {
   const issues: GraphIssue[] = [];
-  if (!graph || graph.schemaVersion !== 1 || !ID_PATTERN.test(graph.id) ||
+  if (!graph || typeof graph !== "object" || graph.schemaVersion !== 1 || typeof graph.id !== "string" || !ID_PATTERN.test(graph.id) ||
       !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
     return [{ code: "INVALID_SHAPE", path: "$", message: "Expected schemaVersion 1, a valid graph id, and node/edge arrays." }];
   }
@@ -61,6 +61,22 @@ export function validateGraph(graph: GraphDefinition): GraphIssue[] {
       return;
     }
     nodes.set(node.id, node);
+    for (const [name, ports] of [["inputs", node.inputs], ["outputs", node.outputs]] as const) {
+      if (ports !== undefined && (!ports || typeof ports !== "object" || Array.isArray(ports))) {
+        issues.push({ code: "INVALID_SHAPE", path: path + "." + name, message: "Node " + name + " must be a port-name map." });
+        continue;
+      }
+      for (const [portName, port] of Object.entries(ports ?? {})) {
+        if (!port || typeof port !== "object" || Array.isArray(port) ||
+            !["text", "number", "boolean", "json", "any"].includes(port.type) ||
+            (port.required !== undefined && typeof port.required !== "boolean")) {
+          issues.push({ code: "INVALID_SHAPE", path: path + "." + name + "." + portName, message: "Each port needs a supported type and an optional boolean required flag." });
+        }
+      }
+    }
+    if (node.config !== undefined && (!node.config || typeof node.config !== "object" || Array.isArray(node.config))) {
+      issues.push({ code: "INVALID_SHAPE", path: path + ".config", message: "Node config must be a JSON object." });
+    }
   });
 
   const edgeIds = new Set<string>();
@@ -69,7 +85,7 @@ export function validateGraph(graph: GraphDefinition): GraphIssue[] {
   graph.edges.forEach((edge, index) => {
     const path = `edges[${index}]`;
     if (!edge || typeof edge.id !== "string" || !ID_PATTERN.test(edge.id) ||
-        !edge.from || !edge.to || typeof edge.from.nodeId !== "string" ||
+        !edge.from || typeof edge.from !== "object" || Array.isArray(edge.from) || !edge.to || typeof edge.to !== "object" || Array.isArray(edge.to) || typeof edge.from.nodeId !== "string" ||
         typeof edge.from.port !== "string" || typeof edge.to.nodeId !== "string" ||
         typeof edge.to.port !== "string") {
       issues.push({ code: "INVALID_SHAPE", path, message: "Each edge needs an id and valid source/target node and port references." });
