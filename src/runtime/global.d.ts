@@ -21,6 +21,7 @@ export interface PawApprovalRecord {
   decisionNote?: string;
 }
 export interface PawProviderStatus { provider: 'groq'; configured: boolean; model: string; }
+export interface PawGraphValidation { valid: boolean; issues: Array<{ code: string; path: string; message: string }>; }
 export interface PawRuntimeStatus {
   connected: boolean;
   mode: string;
@@ -47,6 +48,11 @@ declare global {
       platform: string;
       version: string;
       runtimeStatus: () => Promise<PawRuntimeStatus>;
+      validateGraph: (graph: unknown) => Promise<PawGraphValidation>;
+      executeGraph: (input: { graph: unknown; workspaceId?: string; concurrency?: number }) => Promise<PawRunRecord>;
+      pauseGraph: (id: string) => Promise<{ requested: boolean; id: string }>;
+      resumeGraph: (id: string) => Promise<{ requested: boolean; id: string }>;
+      cancelGraph: (id: string) => Promise<{ requested: boolean; id: string }>;
       providerStatus: () => Promise<PawProviderStatus>;
       listRuns: (workspaceId?: string) => Promise<PawRunRecord[]>;
       createRun: (input: { graphId: string; workspaceId?: string }) => Promise<PawRunRecord>;
