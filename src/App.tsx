@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Activity, Boxes, BrainCircuit, Cpu, Layers3, Maximize2, Network, Search, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
+import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, Search, Send, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
 import { ArcRotateCamera, Color3, Engine, HemisphericLight, MeshBuilder, PBRMaterial, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
 
 type Agent = { id:string; name:string; role:string; color:string; x:number; z:number; state:string; task:string }
@@ -36,6 +36,34 @@ function World({onSelect}:{onSelect:(id:string)=>void}) {
 }
 export default function App(){
   const [selected,setSelected]=useState('orchestrator');const [query,setQuery]=useState('')
+  const [providerConfigured,setProviderConfigured]=useState(false)
+  const [apiKey,setApiKey]=useState('')
+  const [prompt,setPrompt]=useState('')
+  const [answer,setAnswer]=useState('')
+  const [providerMessage,setProviderMessage]=useState('Checking desktop provider bridge…')
+  const [providerBusy,setProviderBusy]=useState(false)
+  useEffect(()=>{
+    let cancelled=false
+    if(!window.paw?.providerStatus){setProviderMessage('Desktop runtime required. Browser preview cannot store secrets or call Groq.');return}
+    window.paw.providerStatus().then(status=>{if(!cancelled){setProviderConfigured(status.configured);setProviderMessage(status.configured?'Groq key stored securely on this device.':'Groq key not configured.')}}).catch(()=>{if(!cancelled)setProviderMessage('Provider status unavailable.')})
+    return()=>{cancelled=true}
+  },[])
+  const saveGroq=async()=>{
+    if(!window.paw?.configureGroq){setProviderMessage('Open the installed desktop app to configure Groq securely.');return}
+    if(!apiKey.trim()){setProviderMessage('Enter a Groq API key first.');return}
+    setProviderBusy(true)
+    try{await window.paw.configureGroq(apiKey);setApiKey('');const status=await window.paw.providerStatus();setProviderConfigured(status.configured);setProviderMessage('Groq credential saved using operating-system secure storage.')}
+    catch(error){setProviderMessage(error instanceof Error?error.message:'Could not save the credential.')}
+    finally{setProviderBusy(false)}
+  }
+  const askGroq=async()=>{
+    if(!window.paw?.chatWithGroq){setProviderMessage('Groq calls are available only in the installed desktop app.');return}
+    if(!prompt.trim()){setProviderMessage('Enter a prompt before sending.');return}
+    setProviderBusy(true);setAnswer('')
+    try{const result=await window.paw.chatWithGroq({prompt});setAnswer(result.text);setProviderMessage('Response received from '+result.model+'.');void window.paw.appendHistoryEvent({type:'provider.groq.response',payload:{model:result.model,promptLength:prompt.length}})}
+    catch(error){setProviderMessage(error instanceof Error?error.message:'Groq request failed.')}
+    finally{setProviderBusy(false)}
+  }
   const select=(id:string)=>setSelected(id)
   const active=agents.find(a=>a.id===selected)??agents[0]
   return <main className="app">
@@ -43,7 +71,7 @@ export default function App(){
     <nav className="rail"><Network/><Cpu/><Workflow/><BrainCircuit/><TerminalSquare/><div className="spacer"/><ShieldCheck/></nav>
     <section className="layout"><aside className="left"><div className="eyebrow">WORKSPACE</div><h1>Agent network</h1><label className="search"><Search size={14}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find agents"/></label><div className="eyebrow section">NETWORK OBJECTS <span>{agents.length.toString().padStart(2,'0')}</span></div>{agents.filter(a=>(a.name+a.role).toLowerCase().includes(query.toLowerCase())).map(a=><button key={a.id} className={'agent '+(selected===a.id?'chosen':'')} onClick={()=>select(a.id)}><span className="glyph" style={{color:a.color}}><Cpu size={16}/></span><span><b>{a.name}</b><small>{a.role}</small></span><i className={a.state.toLowerCase()}/></button>)}<div className="runtime"><div className="eyebrow">RUNTIME STATUS</div><b><Activity size={15}/> Runtime offline</b><small>Preview data only. No real agents are running.</small></div></aside>
     <section className="viewport"><div className="viewhead"><div><div className="eyebrow">SPATIAL WORKSPACE / DEFAULT ZONE</div><h2>Coordination field</h2></div><span className="spatial"><Layers3 size={13}/> SPATIAL <Maximize2 size={14}/></span></div><div className="scene"><World onSelect={select}/><div className="scene-label">PHYSICS PREVIEW / {agents.length} NODES</div><div className="hint">Drag to orbit Â· Scroll to zoom Â· Click a machine to inspect</div></div><footer className="viewfoot"><span>â READY <b>01</b></span><span>â IDLE <b>03</b></span><span className="spacer"/>QUALITY <b>ADAPTIVE</b> Â· CAMERA <b>FREE</b></footer></section>
-    <aside className="inspector"><div className="eyebrow">OBJECT INSPECTOR</div><h2>Agent details</h2><div className="object"><span style={{color:active.color}}><Cpu size={24}/></span><div><b>{active.name}</b><small>{active.role}</small></div><i>{active.state}</i></div><div className="section"><div className="eyebrow">IDENTITY</div><p><span>Node ID</span><code>{active.id}</code></p><p><span>Execution</span><b>Not connected</b></p><p><span>Autonomy</span><b>Not configured</b></p></div><div className="section"><div className="eyebrow">CURRENT TASK</div><div className="task"><b>Task summary</b><p>{active.task}</p><small>No live reasoning or tool activity available.</small></div></div><div className="section"><div className="eyebrow">CONNECTIONS</div><p><span>Dependencies</span><b>{active.id==='orchestrator'?'3 downstream':'1 upstream'}</b></p><p><span>Inputs / outputs</span><b>Not available</b></p></div><div className="section"><div className="eyebrow">OBSERVABILITY</div><div className="task">Execution logs appear here when a real runtime is connected.</div></div><div className="safe">Controls disabled until a trusted runtime is connected.</div></aside></section>
+    <aside className="inspector"><div className="eyebrow">OBJECT INSPECTOR</div><h2>Agent details</h2><div className="object"><span style={{color:active.color}}><Cpu size={24}/></span><div><b>{active.name}</b><small>{active.role}</small></div><i>{active.state}</i></div><div className="section"><div className="eyebrow">IDENTITY</div><p><span>Node ID</span><code>{active.id}</code></p><p><span>Execution</span><b>Not connected</b></p><p><span>Autonomy</span><b>Not configured</b></p></div><div className="section"><div className="eyebrow">CURRENT TASK</div><div className="task"><b>Task summary</b><p>{active.task}</p><small>No live reasoning or tool activity available.</small></div></div><div className="section"><div className="eyebrow">CONNECTIONS</div><p><span>Dependencies</span><b>{active.id==='orchestrator'?'3 downstream':'1 upstream'}</b></p><p><span>Inputs / outputs</span><b>Not available</b></p></div><div className="section"><div className="eyebrow">OBSERVABILITY</div><div className="task">Execution logs appear here when a real runtime is connected.</div></div><div className="section provider-panel"><div className="eyebrow"><KeyRound size={12}/> MODEL PROVIDER / GROQ</div><div className="provider-status"><i className={providerConfigured?'connected':''}/>{providerMessage}</div><label className="provider-label">API KEY <span>ENCRYPTED AT REST</span></label><input className="provider-input" type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="gsk_… (desktop app only)"/><button className="provider-button" onClick={saveGroq} disabled={providerBusy||!apiKey.trim()}>Store credential securely</button><label className="provider-label">PROMPT</label><textarea className="provider-input provider-prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Ask the Groq model something…" rows={3}/><button className="provider-button primary" onClick={askGroq} disabled={providerBusy||!providerConfigured||!prompt.trim()}><Send size={12}/>{providerBusy?'Working…':'Send prompt'}</button>{answer&&<div className="provider-answer">{answer}</div>}</div><div className="safe">Agent execution remains disabled. Groq chat is an isolated provider test, not autonomous tool execution.</div></aside></section>
     <footer className="status"><span>â  DEVELOPMENT PREVIEW</span><span>RUNTIME <b>DISCONNECTED</b></span><span>MODEL <b>NOT CONFIGURED</b></span><span className="spacer"/>v0.1.0 Â· Electron Â· Babylon.js</footer>
   </main>
 }
