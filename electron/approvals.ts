@@ -47,7 +47,9 @@ async function writeRecords(records: ApprovalRecord[]): Promise<void> {
   await mkdir(directory, { recursive: true });
   const target = storePath();
   const temporary = `${target}.${randomUUID()}.tmp`;
-  await writeFile(temporary, JSON.stringify(records), { encoding: "utf8", mode: 0o600, flag: "wx" });
+  const serialized = JSON.stringify(records);
+  if (Buffer.byteLength(serialized, "utf8") > 2_000_000) throw new Error("Approval history reached its storage limit. Archive old records first.");
+  await writeFile(temporary, serialized, { encoding: "utf8", mode: 0o600, flag: "wx" });
   await rename(temporary, target);
 }
 
