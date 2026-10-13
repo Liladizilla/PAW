@@ -7,8 +7,9 @@ const defaultModel = "llama-3.3-70b-versatile";
 const maxPromptChars = 32_000;
 
 function requireSecureStorage() {
-  if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error("Secure credential storage is unavailable. Configure an OS keyring before saving a provider key.");
+  if (!safeStorage.isEncryptionAvailable() || safeStorage.getSelectedStorageBackend() === "basic_text" ||
+      safeStorage.getSelectedStorageBackend() === "unknown") {
+    throw new Error("OS-backed secure credential storage is unavailable. Configure an OS keyring before saving a provider key.");
   }
 }
 
