@@ -8,7 +8,7 @@ A release is a reviewed artifact, not merely a successful build job. Do not labe
 - [ ] PRs reviewed and merged; no unreviewed generated changes.
 - [ ] CI typecheck/build and all automated tests pass.
 - [ ] Secret scan passes.
-- [ ] Dependency audit reviewed; critical findings resolved and high findings documented with an owner and expiry.
+- [ ] Dependency audit reviewed; current baseline is 8 moderate Electron-builder-chain findings, with zero high/critical. Review advisories and record an explicit acceptance/upgrade plan before stable release.
 - [ ] Schema migrations tested from a fresh database and supported previous version.
 - [ ] Provider keys and signing credentials are not in source, renderer bundles, artifacts or logs.
 - [ ] Release notes distinguish implemented capabilities from preview/planned capabilities.
