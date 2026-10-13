@@ -2,7 +2,7 @@
 
 P.A.W. is a local-first, cross-platform agent workspace for Linux, Windows and macOS. The target product combines a Babylon.js spatial control surface with a durable execution runtime, typed workflows, bounded autonomous planning, scoped memory, guarded tools and optional remote workers.
 
-**Current state:** early development. The deployed browser preview remains a UI demonstration. The desktop branch now has typed graph validation/planning, local workspace snapshots, append-only history, persistent approval records, a narrow preload bridge, and a Groq chat adapter that keeps credentials in Electron's encrypted main-process storage when OS secure storage is available. This is not yet an autonomous agent executor: graph nodes do not run tools, there is no scheduler/approval engine, and remote workers are not implemented. Never enter credentials into the browser preview.
+**Current state:** early development. The deployed browser preview remains a UI demonstration and cannot invoke privileged desktop IPC. The desktop branch now has typed graph validation/planning, a bounded-concurrency deterministic DAG executor, pause/resume/cancel controls, durable run records and event history, local workspace snapshots, persistent approval records, a narrow preload bridge, and a Groq chat adapter that keeps credentials in Electron's encrypted main-process storage when OS secure storage is available. The first executable nodes are local text/JSON transforms only. Autonomous model planning, external tool adapters, idempotency, remote workers and SQLite migrations are not implemented. Never enter credentials into the browser preview.
 
 ## Architecture and engineering plan
 
@@ -27,7 +27,7 @@ npm run typecheck
 npm run build
 ```
 
-The CI workflow bootstraps and commits `package-lock.json` once, then enforces `npm ci`. Treat the lockfile migration as complete only after the resulting workflow run passes.
+The CI workflow refreshes `package-lock.json` when manifests change, then enforces `npm ci`. The current runtime executor has unit coverage for typed data flow, policy/approval denial, failure propagation, bounded concurrency, pause/resume and cooperative cancellation.
 
 ## GitHub automation
 
