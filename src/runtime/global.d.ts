@@ -1,3 +1,14 @@
+export type PawRunStatus = 'queued' | 'running' | 'pause_requested' | 'paused' | 'cancel_requested' | 'cancelled' | 'succeeded' | 'failed' | 'needs_recovery';
+export interface PawRunEvent { status: PawRunStatus; timestamp: string; reason?: string; }
+export interface PawRunRecord {
+  id: string;
+  workspaceId: string;
+  graphId: string;
+  status: PawRunStatus;
+  createdAt: string;
+  updatedAt: string;
+  history: PawRunEvent[];
+}
 export interface PawApprovalRecord {
   id: string;
   workspaceId: string;
@@ -37,6 +48,10 @@ declare global {
       version: string;
       runtimeStatus: () => Promise<PawRuntimeStatus>;
       providerStatus: () => Promise<PawProviderStatus>;
+      listRuns: (workspaceId?: string) => Promise<PawRunRecord[]>;
+      createRun: (input: { graphId: string; workspaceId?: string }) => Promise<PawRunRecord>;
+      transitionRun: (input: { id: string; status: PawRunStatus; reason?: string }) => Promise<PawRunRecord>;
+      recoverRun: (input: { id: string; resolution: 'retry' | 'abandon'; note?: string }) => Promise<PawRunRecord>;
       listApprovals: (status?: 'pending' | 'approved' | 'denied') => Promise<PawApprovalRecord[]>;
       requestApproval: (input: { action: string; summary: string; requestedBy?: string }) => Promise<PawApprovalRecord>;
       decideApproval: (input: { id: string; decision: 'approved' | 'denied'; note?: string }) => Promise<PawApprovalRecord>;
