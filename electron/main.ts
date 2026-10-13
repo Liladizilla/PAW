@@ -183,8 +183,8 @@ function registerRuntimeIpc() {
   })
   ipcMain.handle('paw:runtime-status', async () => ({
     connected: true,
-    mode: 'local-persistence-only',
-    executionEnabled: false,
+    mode: 'local-guarded-executor',
+    executionEnabled: true,
     providerConfigured: (await groqProviderStatus()).configured,
     workspaceId: WORKSPACE_ID
   }))
