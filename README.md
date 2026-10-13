@@ -27,7 +27,7 @@ npm run typecheck
 npm run build
 ```
 
-The CI workflow refreshes `package-lock.json` when manifests change, then enforces `npm ci`. The current runtime executor has unit coverage for typed data flow, policy/approval denial, failure propagation, bounded concurrency, pause/resume and cooperative cancellation.
+Dependency changes must update `package.json` and `package-lock.json` together. CI uses read-only permissions and enforces `npm ci` without mutating the branch. The current runtime executor has unit coverage for typed data flow, policy/approval denial, failure propagation, bounded concurrency, pause/resume and cooperative cancellation.
 
 ## GitHub automation
 
