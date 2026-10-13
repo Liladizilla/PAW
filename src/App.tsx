@@ -128,7 +128,7 @@ export default function App(){
     }catch(error){setRunMessage(error instanceof Error?error.message:'Could not control the run.')}
   }
   useEffect(()=>{
-    if(!activeRun?.id||!window.paw?.listRuns)return
+    if(!activeRun?.id||!window.paw?.listRuns||['succeeded','failed','cancelled','needs_recovery'].includes(activeRun.status))return
     let cancelled=false
     const refresh=async()=>{
       try{
