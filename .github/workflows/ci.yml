@@ -35,6 +35,7 @@ jobs:
           if ! git ls-tree -r --name-only HEAD | grep -qx 'package-lock.json'; then
             git add package-lock.json
             git commit -m "build: add reproducible npm lockfile"
+            git pull --rebase origin "${BRANCH_NAME}"
             git push origin "HEAD:${BRANCH_NAME}"
           fi
       - name: Enforce lockfile install
