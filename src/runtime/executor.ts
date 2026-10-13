@@ -8,6 +8,7 @@ export interface NodeExecutionRequest {
   inputs: Record<string, unknown>;
   config: Record<string, unknown>;
   signal: AbortSignal;
+  waitUntilResumed: () => Promise<void>;
 }
 
 export interface RegisteredNodeHandler {
@@ -34,10 +35,50 @@ export interface ExecutionEvent {
 
 export type NodeHandler = RegisteredNodeHandler["run"];
 
+export class ExecutionControl {
+  private readonly controller = new AbortController();
+  private paused = false;
+  private readonly waiters = new Set<() => void>();
+
+  get signal(): AbortSignal { return this.controller.signal; }
+  get isPaused(): boolean { return this.paused; }
+
+  pause(): void {
+    if (!this.signal.aborted) this.paused = true;
+  }
+
+  resume(): void {
+    this.paused = false;
+    for (const wake of this.waiters) wake();
+    this.waiters.clear();
+  }
+
+  cancel(reason?: unknown): void {
+    this.controller.abort(reason);
+    this.resume();
+  }
+
+  async waitUntilResumed(signal: AbortSignal = this.signal): Promise<void> {
+    while (this.paused && !signal.aborted) {
+      await new Promise<void>(resolve => {
+        const wake = () => {
+          signal.removeEventListener("abort", wake);
+          this.waiters.delete(wake);
+          resolve();
+        };
+        this.waiters.add(wake);
+        signal.addEventListener("abort", wake, { once: true });
+        if (!this.paused || signal.aborted) wake();
+      });
+    }
+  }
+}
+
 export interface GraphExecutionOptions {
   handlers: Readonly<Record<string, RegisteredNodeHandler | NodeHandler>>;
   concurrency?: number;
   signal?: AbortSignal;
+  control?: ExecutionControl;
   authorize?: (request: PolicyRequest) => Promise<PolicyDecision> | PolicyDecision;
   awaitApproval?: (request: PolicyRequest) => Promise<boolean>;
   onEvent?: (event: ExecutionEvent) => Promise<void> | void;
@@ -104,8 +145,10 @@ export async function executeGraph(
     return { graphId: graph.id, status: "failed", outputs: {}, completedNodeIds: [], error: "Concurrency must be an integer between 1 and 16." };
   }
 
-  const controller = options.signal ? null : new AbortController();
-  const signal = options.signal ?? controller!.signal;
+  const signal = options.signal && options.control
+    ? AbortSignal.any([options.signal, options.control.signal])
+    : options.signal ?? options.control?.signal ?? new AbortController().signal;
+  const waitUntilResumed = () => options.control?.waitUntilResumed(signal) ?? Promise.resolve();
   const plan = buildExecutionPlan(graph);
   const nodes = new Map(graph.nodes.map(node => [node.id, node]));
   const edgesByTarget = new Map<string, typeof graph.edges>();
@@ -126,6 +169,7 @@ export async function executeGraph(
   };
 
   const runNode = async (node: GraphNode): Promise<Record<string, unknown>> => {
+    await waitUntilResumed();
     if (signal.aborted) throw new NodeExecutionError("Execution was cancelled.", node.id, "ABORTED");
     const registration = options.handlers[node.type];
     if (!registration || (typeof registration !== "function" && typeof registration.run !== "function")) {
@@ -166,7 +210,7 @@ export async function executeGraph(
     }
 
     await emit({ type: "node.started", nodeId: node.id });
-    const value = await registered.run({ node, inputs, config: node.config ?? {}, signal });
+    const value = await registered.run({ node, inputs, config: node.config ?? {}, signal, waitUntilResumed });
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       throw new NodeExecutionError("Node handlers must return an output object.", node.id, "INVALID_OUTPUT");
     }
@@ -191,6 +235,7 @@ export async function executeGraph(
   try {
     await emit({ type: "graph.started" });
     while (pending.size > 0 || running.size > 0) {
+      await waitUntilResumed();
       if (signal.aborted) {
         await Promise.allSettled(running.values());
         await emit({ type: "graph.cancelled", message: "Execution was cancelled." });
@@ -231,6 +276,14 @@ export async function executeGraph(
       }
     }
 
+    if (signal.aborted) {
+      await emit({ type: "graph.cancelled", message: "Execution was cancelled." });
+      return { graphId: graph.id, status: "cancelled", outputs, completedNodeIds };
+    }
+    if (failure) {
+      await emit({ type: "graph.failed", nodeId: failure.nodeId, message: failure.message });
+      return { graphId: graph.id, status: "failed", outputs, completedNodeIds, error: failure.message };
+    }
     await emit({ type: "graph.succeeded" });
     return { graphId: graph.id, status: "succeeded", outputs, completedNodeIds };
   } catch (error) {
