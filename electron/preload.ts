@@ -1,2 +1,14 @@
-import { contextBridge } from 'electron'
-contextBridge.exposeInMainWorld('paw', Object.freeze({ platform: process.platform, version: '0.1.0', runtimeStatus: 'not-connected' }))
+import { contextBridge, ipcRenderer } from 'electron'
+
+const paw = Object.freeze({
+  platform: process.platform,
+  version: '0.1.0',
+  runtimeStatus: () => ipcRenderer.invoke('paw:runtime-status'),
+  loadWorkspace: () => ipcRenderer.invoke('paw:workspace:load'),
+  saveWorkspace: (data: Record<string, unknown>) => ipcRenderer.invoke('paw:workspace:save', data),
+  appendHistoryEvent: (event: { type: string; payload?: Record<string, unknown> }) =>
+    ipcRenderer.invoke('paw:history:append', event),
+  listHistory: (limit?: number) => ipcRenderer.invoke('paw:history:list', limit)
+})
+
+contextBridge.exposeInMainWorld('paw', paw)
