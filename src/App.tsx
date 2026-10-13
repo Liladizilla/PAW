@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, Search, Send, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
 import { ArcRotateCamera, Color3, Engine, HemisphericLight, MeshBuilder, PBRMaterial, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
-import type { GraphDefinition } from './runtime/graph'
+import { demoGraph } from './runtime/demo-graph'
 
 type Agent = { id:string; name:string; role:string; color:string; x:number; z:number; state:string; task:string }
 type RunRecord = Awaited<ReturnType<typeof window.paw.createRun>>
@@ -12,21 +12,6 @@ const agents:Agent[] = [
   {id:'builder',name:'BUILD ENGINE',role:'Coding agent',color:'#5de0c2',x:4.5,z:-2,state:'IDLE',task:'No task assigned'},
   {id:'validator',name:'VALIDATOR',role:'Testing agent',color:'#ffbd78',x:.5,z:4,state:'IDLE',task:'No task assigned'}
 ]
-const demoGraph: GraphDefinition = {
-  schemaVersion: 1,
-  id: 'local-smoke-test',
-  nodes: [
-    { id: 'source', type: 'text.constant', outputs: { value: { type: 'text', required: true } }, config: { value: 'P.A.W. local runtime' } },
-    { id: 'uppercase', type: 'text.uppercase', inputs: { text: { type: 'text', required: true } }, outputs: { text: { type: 'text', required: true } } },
-    { id: 'guard', type: 'text.constant', outputs: { value: { type: 'text', required: true } }, config: { value: 'GUARDED' } },
-    { id: 'result', type: 'text.concat', inputs: { left: { type: 'text', required: true }, right: { type: 'text', required: true } }, outputs: { text: { type: 'text', required: true } }, config: { separator: ' / ' } }
-  ],
-  edges: [
-    { id: 'source-to-uppercase', from: { nodeId: 'source', port: 'value' }, to: { nodeId: 'uppercase', port: 'text' } },
-    { id: 'uppercase-to-result', from: { nodeId: 'uppercase', port: 'text' }, to: { nodeId: 'result', port: 'left' } },
-    { id: 'guard-to-result', from: { nodeId: 'guard', port: 'value' }, to: { nodeId: 'result', port: 'right' } }
-  ]
-}
 function World({onSelect}:{onSelect:(id:string)=>void}) {
   const canvas=useRef<HTMLCanvasElement>(null)
   useEffect(()=>{
