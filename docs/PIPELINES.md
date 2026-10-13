@@ -6,26 +6,35 @@ Status: target pipeline contract. A documented stage is not operational until it
 
 | Pipeline | Trigger | Required gates | Output |
 |---|---|---|---|
-| Pull request validation | PR to main | locked install, format/lint, typecheck, unit/integration tests, renderer/desktop builds, security checks | reports and build artifact |
-| Main validation | push to main | same required validation gates | immutable artifact and commit status |
+| Pull request validation | PR to main | dependency install, typecheck, desktop build; expand with lint, tests and locked install | build artifact and check summary |
+| Main validation | push to main | same validation gates | build artifact and commit status |
+| Secret/dependency security | PR, main, weekly schedule | Gitleaks scan, npm dependency audit | secret scan result and audit report |
+| Dependency updates | weekly/monthly | Dependabot PRs for npm and GitHub Actions | reviewable dependency updates |
 | Preview deployment | PR or main | web-safe build, secret scan, browser smoke tests | preview URL and test result |
-| Desktop packaging | v* tag or manual dispatch | all gates, tag/version check, clean install | Linux AppImage/deb, Windows NSIS, macOS dmg/zip |
+| Desktop packaging | v* tag or manual dispatch | validation gates, tag/version check, clean install | Linux AppImage/deb, Windows NSIS, macOS dmg/zip |
 | Release publication | after platform jobs succeed | artifact integrity and release notes | GitHub Release |
-| Dependency review | weekly and dependency changes | audit, dependency diff, secret scan, static analysis | security report |
 | End-to-end smoke | manual/scheduled and pre-release | install/start/quit, runtime health, UI load | platform report |
 | Migration verification | persistence changes | fresh DB, prior schema fixture, upgrade/recovery | migration report |
 
+## Current workflows
+
+- `.github/workflows/ci.yml`: typecheck and production build on PRs to main, pushes to main and manual dispatch.
+- `.github/workflows/release.yml`: native platform packaging on version tags or manual dispatch; publishes GitHub Releases for version tags.
+- `.github/workflows/security.yml`: Gitleaks secret scan and npm audit report on PRs, main pushes, weekly schedule and manual dispatch.
+- `.github/dependabot.yml`: weekly npm dependency proposals and monthly GitHub Actions updates.
+
+These workflows are a first operational baseline, not full release certification. The CI still uses npm install because the repository currently lacks a committed package-lock.json. A committed lockfile and successful clean npm ci run remain a required next fix. The automated security job fails on critical npm findings; high findings are reported for triage and must be resolved or explicitly accepted before release.
+
 ## CI contract
 
-1. Start with Node.js 20 LTS and pin toolchain versions consistently.
-2. Commit a supported package lockfile and use npm ci everywhere. Avoid npm install in CI because it may resolve a different tree.
-3. Cache npm by lockfile hash.
-4. Run format/lint, strict typecheck for renderer and Electron, unit tests, runtime contracts, persistence tests and production builds.
-5. Fail if expected build outputs are missing.
-6. Run dependency audit and secret scanning. Report severity and dependency path; never silently ignore critical findings.
-7. Upload test reports and build artifacts on success; upload safe diagnostic reports on failure.
-8. Use least-privilege workflow permissions and cancel superseded PR runs.
-9. Pin third-party GitHub Actions to reviewed immutable SHAs before production release hardening.
+1. Commit a supported package lockfile and use npm ci everywhere. Avoid npm install in CI because it may resolve a different dependency tree.
+2. Cache npm by lockfile hash after the lockfile exists.
+3. Run format/lint, strict typecheck for renderer and Electron, unit tests, runtime contracts, persistence tests and production builds.
+4. Fail if expected build outputs are missing.
+5. Run dependency audit and secret scanning. Report severity and dependency path; never silently ignore critical findings.
+6. Upload test reports and build artifacts on success; upload safe diagnostic reports on failure.
+7. Use least-privilege workflow permissions and cancel superseded PR runs.
+8. Pin third-party GitHub Actions to reviewed immutable SHAs before production release hardening.
 
 ## Preview pipeline
 
@@ -68,12 +77,11 @@ Use feature branches and pull requests. Required checks should include CI, tests
 ## Completion checklist
 
 - [ ] Lockfile committed and npm ci verified.
-- [ ] PR/main CI, security scan and dependency review operational.
+- [x] Initial PR/main CI, secret scan, dependency audit and Dependabot configuration added.
+- [ ] CI includes automated tests, lint/format and clean locked install.
 - [ ] Preview deployment and browser smoke test linked to commits.
 - [ ] Unit/integration/E2E reports published.
 - [ ] Native Linux, Windows and macOS packages succeed.
 - [ ] Checksums and release notes attached.
 - [ ] Secret scanning, permissions and branch protection verified.
 - [ ] Release candidate installed and exercised on supported OSes.
-
-The repository currently has basic build and release workflows, not every pipeline listed here.
