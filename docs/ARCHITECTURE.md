@@ -22,7 +22,7 @@ Initial architecture direction. Detailed protocols and module contracts must be 
 9. Physics never changes semantic graph dependencies.
 10. Rendering degradation must not disable core execution.
 
-## IPC security
+## Execution foundation (implemented, local and bounded)\n\n- `src/runtime/executor.ts` executes validated DAGs with bounded concurrency, dependency-aware scheduling, typed input/output checks, cooperative abort signalling, and structured lifecycle events.\n- External-effect handlers fail closed unless a policy authorizer is supplied. A policy can require a separate approval callback before the handler runs.\n- Missing handlers, denied actions, unapproved actions, invalid outputs and handler failures stop downstream scheduling and return an explicit failed result. The executor does not itself grant filesystem, shell, browser or network capabilities.\n- `src/runtime/executor.test.ts` covers data flow, ordering, external-effect denial, approval gating, failure propagation, concurrency bounds and cancellation.\n- `src/runtime/graph.ts` rejects undeclared ports, required inputs without connections and ambiguous multiple connections to a single input.\n\nThis is a deterministic execution core, not yet connected to the UI or Electron IPC. Built-in tool adapters, persistent approval waiting, run-state integration and durable per-node replay remain separate integration tasks.\n\n## IPC security
 Context isolation and Node integration are enabled appropriately: context isolation on, Node integration off, sandbox on. The preload bridge is minimal. Do not expose generic shell, filesystem or arbitrary IPC methods to the renderer.
 
 ## Implemented foundation (MVP, not a complete runtime)
