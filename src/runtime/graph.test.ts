@@ -47,6 +47,31 @@ test("rejects duplicate node ids", () => {
   assert.ok(validateGraph(graph).some(issue => issue.code === "DUPLICATE_ID"));
 });
 
+test("rejects required inputs that are not connected", () => {
+  const graph: GraphDefinition = { schemaVersion: 1, id: "required-input", nodes: [
+    { id: "source", type: "source", outputs: { value: { type: "text" } } },
+    { id: "sink", type: "sink", inputs: { value: { type: "text", required: true } } }
+  ], edges: [] };
+  assert.ok(validateGraph(graph).some(issue => issue.code === "REQUIRED_INPUT_UNCONNECTED"));
+});
+
+test("rejects two edges targeting the same input port", () => {
+  const graph: GraphDefinition = { schemaVersion: 1, id: "ambiguous-input", nodes: [
+    { id: "a", type: "source", outputs: { value: { type: "text" } } },
+    { id: "b", type: "source", outputs: { value: { type: "text" } } },
+    { id: "sink", type: "sink", inputs: { value: { type: "text" } } }
+  ], edges: [
+    { id: "first", from: { nodeId: "a", port: "value" }, to: { nodeId: "sink", port: "value" } },
+    { id: "second", from: { nodeId: "b", port: "value" }, to: { nodeId: "sink", port: "value" } }
+  ] };
+  assert.ok(validateGraph(graph).some(issue => issue.code === "MULTIPLE_INPUTS"));
+});
+
+test("returns validation issues for malformed nested edges instead of throwing", () => {
+  const malformed = { schemaVersion: 1, id: "malformed", nodes: [{ id: "n", type: "source" }], edges: [{ id: "e" }] };
+  assert.ok(validateGraph(malformed as unknown as GraphDefinition).some(issue => issue.code === "INVALID_SHAPE"));
+});
+
 test("accepts an empty graph with a valid id", () => {
   assert.deepEqual(validateGraph({ schemaVersion: 1, id: "empty", nodes: [], edges: [] }), []);
 });
