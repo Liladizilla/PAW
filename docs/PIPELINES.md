@@ -1,12 +1,12 @@
 # P.A.W. Delivery Pipelines
 
-Status: target pipeline contract. A documented stage is not operational until its workflow exists and a successful run is linked.
+Status: initial CI/security pipelines are operational. Preview deployment is supplied by Vercel Git integration. Native release packaging exists but has not been certified on all three operating systems.
 
 ## Pipeline map
 
 | Pipeline | Trigger | Required gates | Output |
 |---|---|---|---|
-| Pull request validation | PR to main | dependency install, typecheck, desktop build; expand with lint, tests and locked install | build artifact and check summary |
+| Pull request validation | PR to main | `npm ci`, TypeScript checks, runtime unit tests, production build | build artifact and check summary |
 | Main validation | push to main | same validation gates | build artifact and commit status |
 | Secret/dependency security | PR, main, weekly schedule | Gitleaks scan, npm dependency audit | secret scan result and audit report |
 | Dependency updates | weekly/monthly | Dependabot PRs for npm and GitHub Actions | reviewable dependency updates |
@@ -23,11 +23,11 @@ Status: target pipeline contract. A documented stage is not operational until it
 - `.github/workflows/security.yml`: Gitleaks secret scan and npm audit report on PRs, main pushes, weekly schedule and manual dispatch.
 - `.github/dependabot.yml`: weekly npm dependency proposals and monthly GitHub Actions updates.
 
-These workflows are a first operational baseline, not full release certification. The CI still uses npm install because the repository currently lacks a committed package-lock.json. A committed lockfile and successful clean npm ci run remain a required next fix. The automated security job fails on critical npm findings; high findings are reported for triage and must be resolved or explicitly accepted before release.
+These workflows are a first operational baseline, not full release certification. `package-lock.json` is committed and CI has completed a clean `npm ci`, typecheck, runtime unit-test and production-build run successfully. The CI bootstrap still refreshes the lockfile when `package.json` changes, then enforces `npm ci`. The security workflow audits the lockfile and retains its JSON report; critical findings fail the job, while high and moderate findings are reported for triage before release.
 
 ## CI contract
 
-1. Commit a supported package lockfile and use npm ci everywhere. Avoid npm install in CI because it may resolve a different dependency tree.
+1. Keep `package.json` and `package-lock.json` synchronized; use `npm ci` for all validation and packaging steps.
 2. Cache npm by lockfile hash after the lockfile exists.
 3. Run format/lint, strict typecheck for renderer and Electron, unit tests, runtime contracts, persistence tests and production builds.
 4. Fail if expected build outputs are missing.
