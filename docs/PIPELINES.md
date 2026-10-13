@@ -23,7 +23,7 @@ Status: initial CI/security pipelines are operational. Preview deployment is sup
 - `.github/workflows/security.yml`: Gitleaks secret scan and npm audit report on PRs, main pushes, weekly schedule and manual dispatch.
 - `.github/dependabot.yml`: weekly npm dependency proposals and monthly GitHub Actions updates.
 
-These workflows are a first operational baseline, not full release certification. `package-lock.json` is committed and CI has completed a clean `npm ci`, typecheck, runtime unit-test and production-build run successfully. The CI bootstrap still refreshes the lockfile when `package.json` changes, then enforces `npm ci`. The security workflow audits the lockfile and retains its JSON report; critical findings fail the job, while high and moderate findings are reported for triage before release.
+These workflows are a first operational baseline, not full release certification. `package-lock.json` is committed and CI has completed a clean `npm ci`, typecheck, runtime unit-test and production-build run successfully. Dependency changes must update `package.json` and `package-lock.json` together. CI now uses `npm ci` only and has read-only repository permissions, so it cannot silently rewrite dependency resolution on a pull request. The security workflow audits the lockfile and retains its JSON report; critical findings fail the job, while high and moderate findings are reported for triage before release.
 
 ## CI contract
 
