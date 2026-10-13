@@ -4,7 +4,7 @@ import { appendHistoryEvent, loadWorkspace, readHistory, saveWorkspace } from '.
 import { clearGroqApiKey, configureGroqApiKey, groqChat, groqProviderStatus } from './providers/groq'
 import { decideApproval, listApprovals, requestApproval } from './approvals'
 import { createRun, listRuns, resolveRunRecovery, transitionRun } from './runs'
-import { executeGraph, ExecutionControl, type GraphExecutionOptions } from '../src/runtime/executor'
+import { executeGraph, ExecutionControl } from '../src/runtime/executor'
 import { validateGraph, type GraphDefinition } from '../src/runtime/graph'
 import { builtinNodeHandlers } from '../src/runtime/builtins'
 
