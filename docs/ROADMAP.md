@@ -97,7 +97,10 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Rehydrate saved asset-backed scene entities from the validated local catalog and persist their entity records; asset-browser import UI, editable component authoring, undo/redo and full scene serialization remain open.
 - [x] Add Babylon NullEngine tests for chunk loading, movement-based eviction, idempotent updates and resource disposal.
 - [x] Add tested world/render coordinate conversions, chunk-snapped origin selection, and a transactional participant coordinator with rollback tests; live scene integration remains open.
-- [x] Add tested transactional adapters for ordinary render positions, camera focus, thin-instance matrix translations, and scalar X/Z simulation coordinates; live registration and all-owner atomic integration tests remain open.
+- [x] Add tested transactional adapters for ordinary render positions, camera focus, thin-instance matrix translations with renderer notifications, scalar X/Z coordinates, and coupled traffic coordinates plus vehicle meshes.
+- [x] Make streamed chunk roots origin-aware while deriving chunk IDs from world-space focus; add pedestrian position/route world-render conversion helpers.
+- [x] Extend coordinator fault tests for prepare failures and reverse-order rollback.
+- [ ] Register all live owners with one coordinator and prove atomic travel/save/reload across multiple chunk boundaries.
 - [x] Add a reusable bounded fixed-step clock with catch-up limits and tests.
 - [x] Move the live crowd/traffic loop to the shared fixed-step clock; crowd neighbor queries use the spatial index.
 
@@ -145,6 +148,6 @@ The repository now includes a typed graph validator/planner, a bounded-concurren
 - [ ] Set and enforce measured frame-time, memory, import-time, and long-session leak budgets.
 - [x] Define and test a transactional origin-rebase participant contract with commit/rollback behavior.
 - [x] Add a generic render-position participant adapter with staged mutation, rollback, finite-coordinate validation and dynamic owner lookup.
-- [ ] Add explicit adapters for camera target, thin-instance matrices, simulation coordinates and chunk streaming before enabling live rebasing.
+- [x] Add explicit adapters for camera target, thin-instance matrices, traffic simulation coordinates, and origin-aware chunk streaming; pedestrian world/render contract is tested.
 - [ ] Integrate world-origin rebasing atomically across renderer transforms, camera focus, traffic, crowd, imported assets, and persisted world coordinates.
 - [ ] Verify rebasing with travel tests across multiple chunk boundaries and save/reload round trips before calling the world effectively unbounded.
