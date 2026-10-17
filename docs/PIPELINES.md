@@ -10,7 +10,6 @@ Status: GitHub Actions CI/security pipelines are operational. P.A.W. is a native
 | Main validation | push to main | same validation gates | build artifact and commit status |
 | Secret/dependency security | PR, main, weekly schedule | Gitleaks scan, npm dependency audit | secret scan result and audit report |
 | Dependency updates | weekly/monthly | Dependabot PRs for npm and GitHub Actions | reviewable dependency updates |
-| Preview deployment | PR or main | web-safe build, secret scan, browser smoke tests | preview URL and test result |
 | Desktop packaging | v* tag or manual dispatch | validation gates, tag/version check, clean install | Linux AppImage/deb, Windows NSIS, macOS dmg/zip |
 | Release publication | after platform jobs succeed | artifact integrity and release notes | GitHub Release |
 | End-to-end smoke | manual/scheduled and pre-release | install/start/quit, runtime health, UI load | platform report |
@@ -23,7 +22,7 @@ Status: GitHub Actions CI/security pipelines are operational. P.A.W. is a native
 - `.github/workflows/security.yml`: Gitleaks secret scan and npm audit report on PRs, main pushes, weekly schedule and manual dispatch.
 - `.github/dependabot.yml`: weekly npm dependency proposals and monthly GitHub Actions updates.
 
-These workflows are a first operational baseline, not full release certification. There is no Vercel project requirement, web deployment step, or hosted preview dependency for the desktop engine. `package-lock.json` is committed and CI has completed a clean `npm ci`, typecheck, runtime unit-test and production-build run successfully. Dependency changes must update `package.json` and `package-lock.json` together. CI now uses `npm ci` only and has read-only repository permissions, so it cannot silently rewrite dependency resolution on a pull request. The security workflow audits the lockfile and retains its JSON report; critical findings fail the job, while high and moderate findings are reported for triage before release.
+These workflows are a first operational baseline, not full release certification. There is no Vercel project requirement, web deployment step, or hosted preview dependency for the desktop engine. There is no Vercel project requirement, web deployment step, or hosted preview dependency for the desktop engine. `package-lock.json` is committed and CI has completed a clean `npm ci`, typecheck, runtime unit-test and production-build run successfully. Dependency changes must update `package.json` and `package-lock.json` together. CI now uses `npm ci` only and has read-only repository permissions, so it cannot silently rewrite dependency resolution on a pull request. The security workflow audits the lockfile and retains its JSON report; critical findings fail the job, while high and moderate findings are reported for triage before release.
 
 ## CI contract
 
@@ -35,17 +34,6 @@ These workflows are a first operational baseline, not full release certification
 6. Upload test reports and build artifacts on success; upload safe diagnostic reports on failure.
 7. Use least-privilege workflow permissions and cancel superseded PR runs.
 8. Pin third-party GitHub Actions to reviewed immutable SHAs before production release hardening.
-
-## Preview pipeline
-
-Browser preview is a UI demonstration, not the authoritative desktop app or an execution environment. It must never receive provider secrets.
-
-- Create a web-safe renderer build only if Electron APIs are isolated behind a typed bridge and mock adapter.
-- Label mock nodes and simulated activity.
-- Fail preview checks if secret-like values are bundled.
-- Deploy immutable PR previews and a stable main preview.
-- Smoke-test HTTP status, static assets, renderer boot and key navigation.
-- A green Vercel deployment proves deployment health only, not runtime functionality.
 
 ## Desktop release pipeline
 
@@ -79,7 +67,6 @@ Use feature branches and pull requests. Required checks should include CI, tests
 - [ ] Lockfile committed and npm ci verified.
 - [x] Initial PR/main CI, secret scan, dependency audit and Dependabot configuration added.
 - [ ] CI includes automated tests, lint/format and clean locked install.
-- [ ] Preview deployment and browser smoke test linked to commits.
 - [ ] Unit/integration/E2E reports published.
 - [ ] Native Linux, Windows and macOS packages succeed.
 - [ ] Checksums and release notes attached.
