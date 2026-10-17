@@ -83,10 +83,19 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         if(!window.paw?.importGlbAsset||!window.paw?.resolveWorkspaceAsset)throw new Error('GLB import requires the installed desktop app.')
         const picked=await window.paw.importGlbAsset()
         if(picked.canceled)return 'Import cancelled.'
-        const currentRaw=localStorage.getItem('paw.asset.catalog.v1')
-        let catalog:AssetCatalogSnapshot={schemaVersion:1,revision:0,assets:[]}
-        if(currentRaw){const parsed:unknown=JSON.parse(currentRaw);const result=validateAssetCatalog(parsed);if(!result.valid)throw new Error('Saved asset catalog is invalid: '+result.issues.join('; '));catalog=parsed as AssetCatalogSnapshot}
-        catalog=upsertAssetCatalog(catalog,picked.asset)
+        let catalog:AssetCatalogSnapshot
+        try {
+          const currentRaw=localStorage.getItem('paw.asset.catalog.v1')
+          catalog={schemaVersion:1,revision:0,assets:[]}
+          if(currentRaw){const parsed:unknown=JSON.parse(currentRaw);const result=validateAssetCatalog(parsed);if(!result.valid)throw new Error('Saved asset catalog is invalid: '+result.issues.join('; '));catalog=parsed as AssetCatalogSnapshot}
+          catalog=upsertAssetCatalog(catalog,picked.asset)
+        } catch (error) {
+          try { await window.paw.discardImportedGlbAsset(picked.asset.uri) }
+          catch (cleanupError) {
+            throw new Error('Asset catalog update failed and the copied model could not be cleaned up: ' + (cleanupError instanceof Error ? cleanupError.message : 'Unknown cleanup error'))
+          }
+          throw error
+        }
         const imported = await (async () => {
           try {
             return await importWorkspaceAsset(picked.asset,uri=>window.paw.resolveWorkspaceAsset(uri),createBabylonAssetLoader(scene))
