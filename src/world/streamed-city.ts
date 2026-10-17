@@ -3,7 +3,8 @@ import { chunksAround, type WorldChunk } from './world-chunks'
 import { planCityChunk } from './city-chunk-layout'
 
 type LoadedChunk = { meshes: Mesh[]; materials: StandardMaterial[] }
-export type CityChunkStats = { loadedChunks: number; meshes: number; materials: number }\nexport type CityChunkStreamer = { update: (focus: Vector3) => void; dispose: () => void; loadedIds: () => string[]; stats: () => CityChunkStats }
+export type CityChunkStats = { loadedChunks: number; meshes: number; materials: number }
+export type CityChunkStreamer = { update: (focus: Vector3) => void; dispose: () => void; loadedIds: () => string[]; stats: () => CityChunkStats }
 
 /**
  * Creates and disposes real Babylon meshes around the camera target.
@@ -60,5 +61,14 @@ export function createCityChunkStreamer(scene: Scene, chunkSize = 64, radius = 2
       if (created) loaded.set(id, created)
     }
   }
-  return {\n    update,\n    dispose: () => { for (const chunk of loaded.values()) disposeChunk(chunk); loaded.clear() },\n    loadedIds: () => [...loaded.keys()].sort(),\n    stats: () => [...loaded.values()].reduce((total, chunk) => ({\n      loadedChunks: total.loadedChunks + 1,\n      meshes: total.meshes + chunk.meshes.length,\n      materials: total.materials + chunk.materials.length\n    }), { loadedChunks: 0, meshes: 0, materials: 0 })\n  }
+  return {
+    update,
+    dispose: () => { for (const chunk of loaded.values()) disposeChunk(chunk); loaded.clear() },
+    loadedIds: () => [...loaded.keys()].sort(),
+    stats: () => [...loaded.values()].reduce((total, chunk) => ({
+      loadedChunks: total.loadedChunks + 1,
+      meshes: total.meshes + chunk.meshes.length,
+      materials: total.materials + chunk.materials.length
+    }), { loadedChunks: 0, meshes: 0, materials: 0 })
+  }
 }
