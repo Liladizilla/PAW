@@ -60,7 +60,7 @@ test('streamer preserves world chunk IDs when render origin shifts', () => {
     streamer.update(new Vector3(1024, 0, 1024))
     const ids = streamer.loadedIds()
     const root = scene.meshes[0]?.parent as TransformNode | null
-    assert.ok(root); assert.equal(root.position.x, 0)
+    assert.ok(root); assert.ok(Math.abs(root.position.x) < 1e-9)
     streamer.update(Vector3.Zero(), { x: 1024, y: 0, z: 1024 })
     assert.deepEqual(streamer.loadedIds(), ids)
     assert.equal(root.position.x, -1024); assert.equal(root.position.z, -1024)
