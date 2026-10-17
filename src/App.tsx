@@ -299,7 +299,7 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       // Spatial hash limits collision checks to nearby people instead of comparing every pair.
       const cellSize=.75
       crowdSpatialIndex.clear()
-      for(const p of pedestrians)crowdSpatialIndex.set(String(pedestrians.indexOf(p)),{x:p.x,z:p.z},p)
+      pedestrians.forEach((p,index)=>crowdSpatialIndex.set(String(index),{x:p.x,z:p.z},p))
       for(const p of pedestrians){
         const start=p.dir>0?-3.55:3.55
         const end=-start
