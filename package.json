@@ -11,7 +11,7 @@
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "package": "electron-vite build && electron-builder --publish never",
-    "package:linux": "electron-vite build && electron-builder --linux AppImage deb --publish never",
+    "package:linux": "electron-vite build && electron-builder --linux AppImage deb rpm --publish never",
     "package:windows": "electron-vite build && electron-builder --win nsis --publish never",
     "package:mac": "electron-vite build && electron-builder --mac dmg zip --publish never",
     "test": "tsx --test electron/*.test.ts src/runtime/*.test.ts src/world/*.test.ts && node --test scripts/*.test.mjs",
@@ -52,7 +52,8 @@
     "linux": {
       "target": [
         "AppImage",
-        "deb"
+        "deb",
+        "rpm"
       ],
       "category": "Development",
       "maintainer": "Liladizilla <151440626+Liladizilla@users.noreply.github.com>"
@@ -60,7 +61,8 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "artifactName": "${productName}.Setup.${version}.${ext}"
     },
     "mac": {
       "target": [

@@ -34,7 +34,16 @@ Context isolation and Node integration are enabled appropriately: context isolat
 - `electron/providers/groq.ts` calls Groq from the Electron main process. API credentials are encrypted with `safeStorage`; configuration fails closed if OS-backed encryption is unavailable. The provider panel is desktop-only.
 - `electron/preload.ts` exposes a narrow, named API rather than generic filesystem or IPC access.
 
-Graph planning is not graph execution. There is no autonomous tool broker, policy engine, graph scheduler/executor, cooperative worker cancellation, or remote worker implementation yet. Pause/cancel/recovery currently exist as persisted lifecycle contracts, not as controls connected to a running executor.
+Graph planning and local graph execution are implemented as separate layers. The local bounded-concurrency DAG executor validates typed inputs/outputs, propagates failures, enforces configured concurrency, supports cooperative cancellation and pause/resume boundaries, and fails closed for external-effect handlers without an explicit authorizer. The UI's smoke-test graph is connected to this executor. This is not yet an autonomous tool broker: shell, arbitrary filesystem, browser and network tools are not registered, and remote workers are not implemented. Persisted run recovery remains a manual user decision for uncertain work.
+
+## Spatial renderer (implemented baseline)
+
+- `src/App.tsx` uses Babylon.js to render a procedural metropolitan scene, agent objects, city blocks, road and sidewalk geometry, lighting, station cutaway, and runtime diagnostics.
+- `src/world/streamed-city.ts` streams city chunks around the camera and disposes distant chunk meshes; `src/world/city-layout.ts` generates deterministic lots and building layouts.
+- World-origin coordination/rebasing keeps large-world coordinates separate from render coordinates. Camera focus/reset and GLB model import are wired to desktop controls.
+- Scene snapshots save camera/world-origin/entity data locally. Imported asset records and their copied files are persisted with explicit cleanup/rollback handling; rehydration reports missing assets rather than silently inventing them.
+- Automated desktop smoke tests deliberately use a minimal scene on CI's software-rendered runner. They verify the Electron/Babylon lifecycle, not visual city correctness. Real packaged-app interaction and restart-persistence checks remain mandatory.
+- Agent identities and some inspector fields are still demonstration data. The spatial renderer is not evidence of autonomous agents or a fully implemented graph editor.
 
 ## Open engineering work
 Define event schemas, idempotency keys, graph port typing, worker authentication, sync conflict resolution, plugin signing, data migration, OS-specific secret storage and performance budgets.

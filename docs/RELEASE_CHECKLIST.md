@@ -16,7 +16,7 @@ A release is a reviewed artifact, not merely a successful build job. Do not labe
 
 ## Build and artifact verification
 
-- [ ] Linux AppImage and deb produced on native runner.
+- [ ] Linux AppImage, deb and RPM produced on native runner; verify RPM installation on Fedora.
 - [ ] Windows NSIS installer produced on native runner.
 - [ ] macOS DMG and ZIP produced on native runner.
 - [ ] Artifact filenames include version and platform/architecture.
@@ -26,7 +26,11 @@ A release is a reviewed artifact, not merely a successful build job. Do not labe
 
 ## Manual acceptance
 
-- [ ] Clean-machine launch and quit.
+- [ ] Clean-machine install, launch and quit on each supported OS; Fedora test uses RPM or AppImage.
+- [ ] Streamed city geometry is visible in the packaged app, not only in the browser preview.
+- [ ] Camera navigation, agent selection/focus, and every visible primary control perform the advertised action.
+- [ ] Asset/model import succeeds for a valid file and surfaces a real error for an invalid file.
+- [ ] Save a scene, restart the app, and verify the scene and workspace state are restored.
 - [ ] Create/open workspace; restart and verify persisted state.
 - [ ] Provider configuration does not expose secret values to renderer/logs.
 - [ ] Denied tool action cannot execute; pending approval survives restart.
