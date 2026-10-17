@@ -5,5 +5,14 @@ import { resolve } from 'node:path'
 export default defineConfig({
   main: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: { index: resolve('electron/main.ts') } } } },
   preload: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: { index: resolve('electron/preload.ts') } } } },
-  renderer: { root: resolve('.'), resolve: { alias: { '@': resolve('src') } }, plugins: [react()], build: { rollupOptions: { input: { index: resolve('index.html') } } } }
+  renderer: {
+    root: resolve('.'),
+    // Packaged Electron windows load this entry point from file://. Absolute asset URLs
+    // resolve against the filesystem root and leave the app window blank. Keep bundles
+    // relative to out/renderer/index.html in packaged builds.
+    base: './',
+    resolve: { alias: { '@': resolve('src') } },
+    plugins: [react()],
+    build: { rollupOptions: { input: { index: resolve('index.html') } } }
+  }
 })
