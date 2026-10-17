@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { NullEngine, Scene, TransformNode, Vector3 } from '@babylonjs/core'
 import { createCityChunkStreamer } from './streamed-city'
+import { chunksAround } from './world-chunks'
 
 test('streamer loads nearby chunks and evicts distant chunk resources after camera travel', () => {
   const engine = new NullEngine()
@@ -91,6 +92,45 @@ test('streamed chunks inherit world-root rebasing without a second local offset'
   } finally {
     streamer.dispose()
     worldRoot.dispose(false, false)
+    scene.dispose()
+    engine.dispose()
+  }
+})
+
+test('long-distance streaming keeps world chunk identity and resource counts bounded', () => {
+  const engine = new NullEngine(), scene = new Scene(engine)
+  const root = new TransformNode('world-root', scene)
+  const streamer = createCityChunkStreamer(scene, 64, 1, root)
+  const travel = [
+    { x: 4096, z: 4096 }, { x: -4096, z: -4096 },
+    { x: 12288, z: -8192 }, { x: -16384, z: 16384 },
+    { x: 32768, z: -32768 }, { x: -49152, z: 49152 },
+    { x: 65536, z: 65536 }, { x: -65536, z: -65536 }
+  ]
+  try {
+    for (const worldFocus of travel) {
+      const origin = {
+        x: Math.floor(worldFocus.x / 64) * 64,
+        y: 0,
+        z: Math.floor(worldFocus.z / 64) * 64
+      }
+      const renderFocus = { x: worldFocus.x - origin.x, y: 0, z: worldFocus.z - origin.z }
+      root.position.set(-origin.x, -origin.y, -origin.z)
+      streamer.update(new Vector3(renderFocus.x, renderFocus.y, renderFocus.z), origin)
+
+      assert.deepEqual(streamer.loadedIds(), chunksAround(worldFocus, 64, 1).map(chunk => chunk.id))
+      const stats = streamer.stats()
+      assert.equal(stats.loadedChunks, 9)
+      assert.ok(stats.meshes > 0 && stats.meshes <= 9 * 30)
+      assert.equal(stats.meshes, scene.meshes.length)
+      assert.equal(stats.materials, scene.materials.length)
+    }
+  } finally {
+    streamer.dispose()
+    assert.deepEqual(streamer.loadedIds(), [])
+    assert.equal(scene.meshes.length, 0)
+    assert.equal(scene.materials.length, 0)
+    root.dispose(false, false)
     scene.dispose()
     engine.dispose()
   }
