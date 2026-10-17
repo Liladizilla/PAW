@@ -5,6 +5,7 @@ import { createEngineHost } from './world/engine-host'
 import { createCityChunkStreamer } from './world/streamed-city'
 import { SpatialIndex } from './world/spatial-index'
 import { decodeSceneSnapshot, encodeSceneSnapshot } from './world/scene-snapshot'
+import { FixedStepClock } from './world/simulation-clock'
 import { demoGraph } from './runtime/demo-graph'
 import { generateCityLots } from './world/city-layout'
 
@@ -295,6 +296,7 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     }
     const isWalkPhase=(phase:TrafficPhase)=>phase==='pedestrians-a'||phase==='pedestrians-b'
     const crowdSpatialIndex=new SpatialIndex<Pedestrian>(.75)
+    const simulationClock=new FixedStepClock(1/60,.1,5)
     const updateCrowd=(dt:number,walkAllowed:boolean)=>{
       // Spatial hash limits collision checks to nearby people instead of comparing every pair.
       crowdSpatialIndex.clear()
@@ -386,10 +388,7 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     }
     scene.onBeforeRenderObservable.add(()=>{
       cityStreamer.update(camera.target)
-      const frameDelta=Math.min(engine.getDeltaTime()/1000,.1)
-      simulationAccumulator=Math.min(simulationAccumulator+frameDelta,simulationStep*5)
-      while(simulationAccumulator>=simulationStep){
-      const dt=simulationStep
+      simulationClock.advance(engine.getDeltaTime()/1000,(dt)=>{
       cityClock+=dt
       const phase=getTrafficPhase(cityClock)
       for(const signal of signalBulbs){
@@ -425,8 +424,7 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
         }
       }
       updateCrowd(dt,isWalkPhase(phase))
-      simulationAccumulator-=simulationStep
-      }
+      })
     })
     let previousSelection=''
     scene.onBeforeRenderObservable.add(()=>{
@@ -439,9 +437,6 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       previousSelection=current
     })
     scene.onPointerObservable.add(info=>{if(info.type!==1)return;const pick=scene.pick(scene.pointerX,scene.pointerY,m=>typeof m.metadata?.agentId==='string');const id=pick?.pickedMesh?.metadata?.agentId;if(typeof id==='string')onSelect(id)})
-    // Fixed-step simulation decouples crowd/traffic motion from variable renderer frame rates.
-    const simulationStep=1/60
-    let simulationAccumulator=0
     engine.runRenderLoop(()=>scene.render());const resize=()=>engine.resize();window.addEventListener('resize',resize)
     return()=>{
       try{
