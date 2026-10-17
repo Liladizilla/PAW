@@ -27,7 +27,7 @@ export function validateSceneSnapshot(value: unknown): { valid: boolean; issues:
   if (typeof s.savedAt !== 'string' || !Number.isFinite(Date.parse(s.savedAt))) issues.push('savedAt must be a valid date')
   if (!s.camera || !['alpha', 'beta', 'radius'].every(k => Number.isFinite(s.camera?.[k as 'alpha' | 'beta' | 'radius'])) ||
       !finiteVector(s.camera.target)) issues.push('camera transform must be finite')
-  if (!Array.isArray(s.loadedChunkIds) || !s.loadedChunkIds.every(id => typeof id === 'string' && /^chunk:-?\\d+:-?\\d+$/.test(id))) issues.push('loadedChunkIds must contain valid chunk IDs')
+  if (!Array.isArray(s.loadedChunkIds) || !s.loadedChunkIds.every(id => typeof id === 'string' && /^chunk:-?\d+:-?\d+$/.test(id))) issues.push('loadedChunkIds must contain valid chunk IDs')
   if (!Array.isArray(s.entities)) issues.push('entities must be an array')
   else {
     const ids = new Set<string>()
