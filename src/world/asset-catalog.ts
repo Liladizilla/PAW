@@ -20,3 +20,17 @@ export function validateAssetCatalog(value:unknown):{valid:boolean;issues:string
  }
  return {valid:issues.length===0,issues}
 }
+/** Adds or replaces one record and advances the catalog revision only after validation. */
+export function upsertAssetCatalog(snapshot: AssetCatalogSnapshot | undefined, asset: AssetRecord): AssetCatalogSnapshot {
+ const current: AssetCatalogSnapshot = snapshot ?? { schemaVersion: ASSET_CATALOG_SCHEMA_VERSION, revision: 0, assets: [] }
+ const before = validateAssetCatalog(current)
+ if (!before.valid) throw new Error('invalid asset catalog: ' + before.issues.join('; '))
+ const next: AssetCatalogSnapshot = {
+  schemaVersion: ASSET_CATALOG_SCHEMA_VERSION,
+  revision: current.revision + 1,
+  assets: [...current.assets.filter(item => item.id !== asset.id), asset]
+ }
+ const result = validateAssetCatalog(next)
+ if (!result.valid) throw new Error('asset rejected: ' + result.issues.join('; '))
+ return next
+}
