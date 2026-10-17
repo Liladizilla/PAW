@@ -85,13 +85,13 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 ## Engine architecture gate
 
 - [x] Document engine layer ownership, world/entity model, large-world strategy, navigation contracts, persistence boundaries and engine references.
-- [ ] Extract scene construction from the React view into a separately owned engine host/world module.
+- [x] Extract Babylon renderer, scene and camera lifecycle into a separately owned engine host module.
 - [x] Add deterministic chunk coordinate/ring planning, a reusable uniform-grid spatial index and tests.
-- [ ] Connect chunk planning to Babylon mesh generation/disposal, world-origin strategy and scene streaming.
+- [x] Connect chunk planning to deterministic Babylon mesh generation/disposal for outer-city roads, sidewalks and buildings; world-origin strategy remains open.
 - [x] Add versioned asset catalog metadata and workspace-relative path validation with tests.
-- [ ] Add real GLTF/GLB import pipeline, editable entity components, undo/redo and scene serialization.
+- [x] Persist and validate versioned camera/world-view snapshots locally.\n- [ ] Add real GLTF/GLB import pipeline, editable entity components, undo/redo and full scene serialization.
 - [x] Add a reusable bounded fixed-step clock with catch-up limits and tests.
-- [ ] Move the live crowd/traffic loop to the shared simulation clock and spatial index.
+- [ ] Move the live crowd/traffic loop to the shared fixed-step clock (crowd neighbor queries now use the spatial index).
 
 Acceptance: rendering, world simulation, agent runtime and persistence have separate owners and tested contracts.
 
