@@ -96,7 +96,7 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Add a native desktop GLB file picker, copy imported files into the app-owned asset store, load them into the live scene and immediately persist the catalog/entity record; GLTF sidecar import and asset-browser management remain open.
 - [x] Rehydrate saved asset-backed scene entities from the validated local catalog and persist their entity records; asset-browser import UI, editable component authoring, undo/redo and full scene serialization remain open.
 - [x] Add Babylon NullEngine tests for chunk loading, movement-based eviction, idempotent updates and resource disposal.
-- [x] Add tested world/render coordinate conversions and chunk-snapped origin selection; scene-wide rebasing integration remains open.
+- [x] Add tested world/render coordinate conversions, chunk-snapped origin selection, and a transactional participant coordinator with rollback tests; live scene integration remains open.
 - [x] Add a reusable bounded fixed-step clock with catch-up limits and tests.
 - [x] Move the live crowd/traffic loop to the shared fixed-step clock; crowd neighbor queries use the spatial index.
 
@@ -142,5 +142,6 @@ The repository now includes a typed graph validator/planner, a bounded-concurren
 - [x] Expose streamed chunk mesh/material counts and test resource cleanup after eviction/disposal.
 - [ ] Profile repeatable cold-start and steady-state workloads on a real integrated-graphics reference device.
 - [ ] Set and enforce measured frame-time, memory, import-time, and long-session leak budgets.
+- [x] Define and test a transactional origin-rebase participant contract with commit/rollback behavior.
 - [ ] Integrate world-origin rebasing atomically across renderer transforms, camera focus, traffic, crowd, imported assets, and persisted world coordinates.
 - [ ] Verify rebasing with travel tests across multiple chunk boundaries and save/reload round trips before calling the world effectively unbounded.
