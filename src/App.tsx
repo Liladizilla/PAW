@@ -41,6 +41,17 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
     if(!canvas.current)return
     const host=createEngineHost(canvas.current)
     const {engine,scene,camera}=host
+    // CI smoke mode exercises the real Electron renderer and Babylon WebGL lifecycle
+    // without constructing the full procedural city, which is intentionally expensive
+    // on software-rendered GitHub-hosted Linux runners.
+    const smokeReady=(window.paw as unknown as {desktopSmokeReady?:()=>Promise<unknown>}).desktopSmokeReady
+    if(smokeReady){
+      const smokeMesh=MeshBuilder.CreateBox('paw-desktop-smoke-mesh',{size:1},scene)
+      smokeMesh.position.set(0,0,0)
+      engine.runRenderLoop(()=>scene.render())
+      scene.executeWhenReady(()=>{void smokeReady()})
+      return ()=>host.dispose()
+    }
     const worldRoot=new TransformNode('paw-world-origin-root',scene)
     let worldOrigin:WorldOrigin={x:0,y:0,z:0}
     const cityStreamer=createCityChunkStreamer(scene,64,2,worldRoot)
