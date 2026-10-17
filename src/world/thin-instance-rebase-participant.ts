@@ -42,8 +42,8 @@ export function createThinInstanceRebaseParticipant(
               buffer[i + 14] = before[i + 14] - delta.z
             }
           }
-          onBuffersChanged()
           committed = true
+          onBuffersChanged()
         },
         rollback: () => {
           if (!committed) return
