@@ -3,6 +3,7 @@ import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isTrustedRendererUrl } from './renderer-security'
 import { isDisposableImportedGlbUri, isSafeWorkspaceAssetUri } from './asset-path-security'
+import { createImportedAssetLeaseRegistry } from './imported-asset-lease'
 import { randomUUID } from 'node:crypto'
 import { copyFile, mkdir, readFile, realpath, stat, unlink } from 'node:fs/promises'
 import { appendHistoryEvent, loadWorkspace, readHistory, saveWorkspace } from './persistence'
@@ -20,6 +21,7 @@ protocol.registerSchemesAsPrivileged([{
 }])
 
 const WORKSPACE_ID = 'default'
+const importedAssetLeases = createImportedAssetLeaseRegistry()
 const ASSET_MIME: Record<string, string> = {
   '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.bin': 'application/octet-stream',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp'
@@ -144,6 +146,7 @@ function registerRuntimeIpc() {
     await mkdir(assetRoot(), { recursive: true })
     const target = safeAssetPath(uri, true)
     await copyFile(source, target)
+    importedAssetLeases.register(uri)
     return {
       canceled: false as const,
       asset: {
@@ -153,12 +156,18 @@ function registerRuntimeIpc() {
     }
   })
   handle('paw:assets:discard-import', async (_event, raw: unknown) => {
-    if (!isDisposableImportedGlbUri(raw)) throw new Error('Only a newly imported GLB asset can be discarded.')
+    if (!importedAssetLeases.canDiscard(raw)) throw new Error('Only an active, newly imported GLB asset can be discarded.')
     const target = safeAssetPath(raw, true)
     try { await unlink(target) } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
+    importedAssetLeases.discard(raw)
     return { discarded: true as const }
+  })
+  handle('paw:assets:commit-import', (_event, raw: unknown) => {
+    if (!importedAssetLeases.canDiscard(raw)) throw new Error('Only an active imported GLB asset can be committed.')
+    importedAssetLeases.commit(raw)
+    return { committed: true as const }
   })
   handle('paw:assets:resolve', async (_event, raw: unknown) => {
     if (typeof raw !== 'string') throw new Error('Asset URI must be text.')

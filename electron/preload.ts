@@ -6,6 +6,7 @@ const paw = Object.freeze({
   checkAssetFiles: (uris: string[]) => ipcRenderer.invoke('paw:assets:inspect', uris),
   importGlbAsset: () => ipcRenderer.invoke('paw:assets:import-glb'),
   discardImportedGlbAsset: (uri: string) => ipcRenderer.invoke('paw:assets:discard-import', uri),
+  commitImportedGlbAsset: (uri: string) => ipcRenderer.invoke('paw:assets:commit-import', uri),
   version: '0.1.0',
   runtimeStatus: () => ipcRenderer.invoke('paw:runtime-status'),
   validateGraph: (graph: unknown) => ipcRenderer.invoke('paw:graph:validate', graph),

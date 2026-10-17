@@ -141,7 +141,13 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
           }
           throw new Error('Asset import was rolled back because persistent storage failed: ' + (error instanceof Error ? error.message : 'Unknown storage error'))
         }
-        return 'Imported '+picked.asset.uri.split('/').pop()+' and saved it to the scene.'
+        try {
+          await window.paw.commitImportedGlbAsset(picked.asset.uri)
+          return 'Imported '+picked.asset.uri.split('/').pop()+' and saved it to the scene.'
+        } catch (error) {
+          console.warn('P.A.W. saved the imported asset but could not finalize its temporary discard lease.', error)
+          return 'Imported and saved the model, but its temporary cleanup lease could not be finalized. Restart P.A.W. before importing more models.'
+        }
       }
     }
     new HemisphericLight('ambient',new Vector3(.1,1,.1),scene).intensity=.9
