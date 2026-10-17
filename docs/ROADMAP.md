@@ -51,10 +51,19 @@ Acceptance: deterministic graph runs survive restart; approvals persist; replay 
 
 Acceptance: real model response works without exposing secrets to renderer; denied tools cannot execute; budget exhaustion is enforced.
 
-## M4 — Spatial workspace integration
+## M4 — Spatial workspace and living city
 
+- [x] Establish a first real-world 3D city blockout: asphalt streets, raised pavements, crosswalks, street lighting and distinct multi-storey buildings.
+- [x] Add a visible underground metro arrival hub with stairs, retaining walls, platform and track bed.
+- [x] Represent the current named agents as selectable human-shaped 3D figures; keep them visually distinct from workflow graph nodes.
+- [x] Add district labels and a camera framing suitable for exploring the initial city block.
+- [ ] Drive agent movement, arrivals, station work and returns from actual runtime/provider events only; never imply successful work with decorative animation.
+- [ ] Implement station routing, walkable paths, intersection right-of-way, collision avoidance and approval/failure destinations.
+- [ ] Add instanced ambient crowds and level-of-detail tiers, with adaptive quality for integrated graphics and modest hardware.
+- [ ] Grow the city modularly by adding districts and infrastructure as the product and real workload needs expand; preserve navigation and performance budgets.
 - [ ] Replace sample data with runtime snapshots/events.
 - [ ] Add graph editing, typed ports, connections, selection and multi-select.
+- [ ] Bind city stations to registered capabilities and live agent assignments.
 - [ ] Add live inspector for status, progress, I/O, dependencies and redacted logs.
 - [ ] Implement durable approval UI, pause/cancel and intervention controls.
 - [ ] Add accessible list/tree alternative, keyboard navigation and reduced motion.
