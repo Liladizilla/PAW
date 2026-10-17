@@ -270,3 +270,5 @@ body { background: #101113; }
 @media(prefers-reduced-motion:reduce) {
   .city-legend * { transition: none !important; }
 }
+
+.city-legend .legend-traffic { background: #e0b65f; }
