@@ -48,7 +48,7 @@ Lock dependencies, review audit output, scan secrets, run static analysis and pr
 
 - Renderer cannot read process environment, filesystem or provider secrets.
 - Unauthorized IPC and malformed payloads are rejected.
-- Traversal and symlink escape fail closed.
+- Workspace asset URI validation is a pure, unit-tested boundary (`electron/asset-path-security.ts`); traversal, absolute paths, encoded traversal, backslashes and invalid model extensions are rejected before filesystem resolution. Canonical `realpath` containment still rejects symlink escapes.
 - Plugin cannot call ungranted capabilities or elevate grants.
 - Prompt-injected content cannot change policy or bypass approval.
 - Secrets are absent from logs, crash reports, preview bundles and exports.
