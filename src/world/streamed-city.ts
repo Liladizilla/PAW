@@ -1,4 +1,4 @@
-import { Color3, Mesh, MeshBuilder, Scene, StandardMaterial } from '@babylonjs/core'
+import { Color3, Mesh, MeshBuilder, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
 import { chunksAround, type WorldChunk } from './world-chunks'
 
 type LoadedChunk = { meshes: Mesh[]; materials: StandardMaterial[] }
