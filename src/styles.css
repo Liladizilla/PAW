@@ -235,3 +235,38 @@ body { background: #101113; }
 @media (prefers-reduced-motion: reduce) {
   .execution-node, .node-state { transition: none; }
 }
+
+/* City district key: labels describe the modeled infrastructure, not runtime claims. */
+.city-legend {
+  position: absolute;
+  top: 48px;
+  left: 17px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: calc(100% - 34px);
+  pointer-events: none;
+}
+.city-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid #454238;
+  border-radius: 999px;
+  background: #1b1c1adf;
+  color: #c3bba9;
+  font: 8px var(--mono);
+  letter-spacing: .035em;
+}
+.city-legend i { width: 6px; height: 6px; border-radius: 50%; background: #d8b57b; }
+.city-legend .legend-research { background: #a6a5ff; }
+.city-legend .legend-build { background: #5eaaa0; }
+.city-legend .legend-review { background: #c3a16d; }
+@media(max-width:640px) {
+  .city-legend { top: 42px; left: 12px; gap: 4px; }
+  .city-legend span { padding: 5px 6px; font-size: 7px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .city-legend * { transition: none !important; }
+}
