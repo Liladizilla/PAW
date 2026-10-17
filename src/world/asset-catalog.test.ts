@@ -10,3 +10,13 @@ const simpleAsset: AssetRecord = { id:'model-a', kind:'mesh', uri:'assets/model-
 test('catalog upsert adds assets and advances revision',()=>{const next=upsertAssetCatalog(undefined,simpleAsset);assert.equal(next.revision,1);assert.deepEqual(next.assets,[simpleAsset])})
 test('catalog upsert replaces a matching ID without duplicates',()=>{const first=upsertAssetCatalog(undefined,simpleAsset);const next=upsertAssetCatalog(first,{...simpleAsset,tags:['updated']});assert.equal(next.revision,2);assert.equal(next.assets.length,1);assert.deepEqual(next.assets[0].tags,['updated'])})
 test('catalog upsert rejects unsafe records without mutating the prior snapshot',()=>{const first=upsertAssetCatalog(undefined,simpleAsset);assert.throws(()=>upsertAssetCatalog(first,{...simpleAsset,id:'bad',uri:'assets/../escape.glb'}));assert.equal(first.revision,1);assert.equal(first.assets.length,1)})
+
+test('catalog rejects nested or non-finite import settings and empty content hashes',()=> {
+  const nested=validateAssetCatalog({schemaVersion:1,revision:0,assets:[{...asset,importSettings:{nested:{unsafe:true}}}]})
+  assert.equal(nested.valid,false)
+  assert.ok(nested.issues.some(x=>x.includes('finite scalar values')))
+  const nonFinite=validateAssetCatalog({schemaVersion:1,revision:0,assets:[{...asset,importSettings:{scale:Number.POSITIVE_INFINITY}}]})
+  assert.equal(nonFinite.valid,false)
+  const emptyHash=validateAssetCatalog({schemaVersion:1,revision:0,assets:[{...asset,contentHash:' '}]})
+  assert.equal(emptyHash.valid,false)
+})
