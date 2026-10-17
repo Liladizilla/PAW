@@ -17,6 +17,7 @@ A release is a reviewed artifact, not merely a successful build job. Do not labe
 ## Build and artifact verification
 
 - [ ] Linux AppImage and deb produced on native runner.
+- [ ] Installation guide matches the exact artifacts, signing/notarization state and data location for this release.
 - [ ] Windows NSIS installer produced on native runner.
 - [ ] macOS DMG and ZIP produced on native runner.
 - [ ] Artifact filenames include version and platform/architecture.
@@ -27,7 +28,8 @@ A release is a reviewed artifact, not merely a successful build job. Do not labe
 
 ## Manual acceptance
 
-- [ ] Clean-machine launch and quit on each supported OS; the Linux CI smoke is not a substitute for Windows/macOS validation.
+- [ ] Clean-machine launch, quit, upgrade and uninstall behavior verified on each supported OS; the Linux CI smoke is not a substitute for Windows/macOS validation.
+- [ ] Follow the published [installation guide](INSTALLATION.md) on a clean Fedora/Linux test profile and verify SHA-256 instructions against the actual release manifest.
 - [ ] Verify release is distributed through GitHub Releases; no hosted web deployment is required.
 - [ ] Create/open workspace; close the app fully, relaunch it, and verify persisted state.
 - [ ] Import a real self-contained GLB, save the workspace, close/relaunch Electron, and verify the file, transform, visibility and restore status. Record OS and result.
