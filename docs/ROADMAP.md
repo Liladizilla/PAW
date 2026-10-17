@@ -134,3 +134,13 @@ Acceptance: all release gates in docs/PIPELINES.md and docs/TEST_STRATEGY.md are
 ## Current reality
 
 The repository now includes a typed graph validator/planner, a bounded-concurrency local DAG executor, typed input/output checks, pause/resume/cancel controls, persisted run lifecycle state, recent event history in the desktop UI, local workspace snapshots, append-only event history, durable approval records, manual recovery, guarded IPC and a Groq provider path with encrypted credential storage. The first registered executor nodes are deterministic local text/JSON transforms. External tools, autonomous model-driven planning, idempotency and remote workers remain unimplemented. The browser preview cannot invoke the privileged desktop runtime bridge. The target architecture remains larger than the current implementation.
+
+
+## M6 — Performance evidence and large-world correctness
+
+- [x] Add bounded live renderer telemetry for measured frame-time percentiles and scene/resource counters.
+- [x] Expose streamed chunk mesh/material counts and test resource cleanup after eviction/disposal.
+- [ ] Profile repeatable cold-start and steady-state workloads on a real integrated-graphics reference device.
+- [ ] Set and enforce measured frame-time, memory, import-time, and long-session leak budgets.
+- [ ] Integrate world-origin rebasing atomically across renderer transforms, camera focus, traffic, crowd, imported assets, and persisted world coordinates.
+- [ ] Verify rebasing with travel tests across multiple chunk boundaries and save/reload round trips before calling the world effectively unbounded.
