@@ -64,6 +64,15 @@ Civilian movement is a simulation concern, not a rendering side effect. Routes a
 - Tool/plugin execution remains behind capability manifests, policy checks, approval gates, timeouts, resource limits and audit records.
 - Remote workers, if added, use authenticated scoped APIs and never share the local SQLite file directly.
 
+## Implemented engine primitives
+
+- `src/world/world-chunks.ts` defines deterministic 128 m-style chunk coordinates and a nearest-first camera streaming ring. It describes the desired streaming policy; it does not yet generate/dispose Babylon meshes automatically.
+- `src/world/spatial-index.ts` provides a reusable uniform-grid broadphase query for nearby entities and collision candidates.
+- `src/world/asset-catalog.ts` validates versioned asset metadata, workspace-relative paths, import settings and optional bounds. It does not yet import GLTF/GLB or other assets.
+- `src/world/simulation-clock.ts` provides bounded fixed-step timing and reports dropped time during stalls.
+
+These primitives are independently tested. They are not yet wired into a single engine host, and the current scene's crowd/traffic loop still needs migration to the shared clock and spatial index.
+
 ## Incremental implementation gates
 
 1. Deterministic procedural city + route planner and tests.
