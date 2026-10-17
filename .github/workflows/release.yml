@@ -52,7 +52,7 @@ jobs:
       - name: Generate and verify release checksums
         run: |
           cd release-assets
-          sha256sum * > SHA256SUMS.txt
+          find . -type f ! -name 'SHA256SUMS.txt' -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
           sha256sum --check SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
