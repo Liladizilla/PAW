@@ -14,7 +14,6 @@ const paw = Object.freeze({
   cancelGraph: (id: string) => ipcRenderer.invoke('paw:graph:cancel', id),
   listRuns: (workspaceId?: string) => ipcRenderer.invoke('paw:runs:list', workspaceId),
   createRun: (input: { graphId: string; workspaceId?: string }) => ipcRenderer.invoke('paw:runs:create', input),
-  transitionRun: (input: { id: string; status: 'queued' | 'running' | 'pause_requested' | 'paused' | 'cancel_requested' | 'cancelled' | 'succeeded' | 'failed' | 'needs_recovery'; reason?: string }) => ipcRenderer.invoke('paw:runs:transition', input),
   recoverRun: (input: { id: string; resolution: 'retry' | 'abandon'; note?: string }) => ipcRenderer.invoke('paw:runs:recover', input),
   listApprovals: (status?: 'pending' | 'approved' | 'denied') => ipcRenderer.invoke('paw:approvals:list', status),
   requestApproval: (input: { action: string; summary: string; requestedBy?: string }) => ipcRenderer.invoke('paw:approvals:request', input),
