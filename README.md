@@ -21,6 +21,7 @@ The current branch contains a large procedural metropolitan grid, varied seeded 
 - [Pipeline design](docs/PIPELINES.md): PR CI, security, native packaging and release.
 - [Test strategy](docs/TEST_STRATEGY.md): unit through end-to-end, fault injection and release gates.
 - [Release checklist](docs/RELEASE_CHECKLIST.md): tag, artifact, manual acceptance and rollback gates.
+- [Asset recovery](docs/ASSET_RECOVERY.md): restore imported GLB models and diagnose missing workspace assets.
 - [Roadmap](docs/ROADMAP.md): staged implementation and acceptance criteria.
 
 ## Development
