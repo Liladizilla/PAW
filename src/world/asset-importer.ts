@@ -12,7 +12,19 @@ export async function importWorkspaceAsset<T>(asset: AssetRecord, resolve: Asset
   if (!['glb', 'gltf'].includes(asset.format.toLowerCase()) || !['mesh', 'prefab'].includes(asset.kind)) throw new Error('asset importer supports only mesh/prefab GLTF or GLB records')
   const location = await resolve(asset.uri)
   if (!location || typeof location.rootUrl !== 'string' || !location.rootUrl.startsWith('paw-workspace://') || location.rootUrl.split(/[\\/]/).includes('..') || typeof location.fileName !== 'string' || !location.fileName.trim() || /^(https?:|file:|javascript:)/i.test(location.fileName) || location.fileName.split(/[\\/]/).includes('..')) throw new Error('workspace resolver returned an unsafe asset location')
-  const loaded = await load(location, asset)
+  const loaded: unknown = await load(location, asset)
+  if (!loaded || typeof loaded !== 'object' || !('value' in loaded) || !('dispose' in loaded) || typeof (loaded as { dispose?: unknown }).dispose !== 'function') {
+    throw new Error('asset loader returned an invalid driver result')
+  }
+  const result = loaded as { value: T; dispose: () => void }
   let disposed = false
-  return { assetId: asset.id, value: loaded.value, dispose: () => { if (!disposed) { disposed = true; loaded.dispose() } } }
+  return {
+    assetId: asset.id,
+    value: result.value,
+    dispose: () => {
+      if (disposed) return
+      disposed = true
+      result.dispose()
+    }
+  }
 }
