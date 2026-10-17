@@ -35,6 +35,8 @@ P.A.W. is an application built on Babylon.js today, with an engine-style world/r
 
 ## World and entity model
 
+The first contract implementation lives in `src/world/world-model.ts`: schema-versioned entities/components, snapshot validation, stable entity IDs, a monotonically sequenced in-memory scene event stream and snapshot isolation. Its event stream is intentionally **not** the durable agent-runtime journal; persistence/migrations and renderer subscription are separate follow-up work.
+
 - **World:** owns a scene identity, origin, chunk index and systems registry.
 - **Entity:** stable ID and a bag of typed components.
 - **Components:** transform, renderable, collider, navigation agent, destination, traffic participant, runtime-agent binding and metadata.
