@@ -110,7 +110,7 @@ function registerRuntimeIpc() {
       const expectedRenderer = process.env.PAW_DESKTOP_SMOKE === '1' ? 'smoke.html' : 'index.html'
       const expectedFileUrl = pathToFileURL(resolve(__dirname, '../renderer/' + expectedRenderer)).href
       if (!isTrustedRendererUrl(frame.url, {
-        packaged: app.isPackaged,
+        packaged: app.isPackaged || process.env.PAW_DESKTOP_SMOKE === '1',
         expectedFileUrl,
         developmentUrl: process.env.ELECTRON_RENDERER_URL
       })) {
