@@ -41,8 +41,9 @@ These workflows are a first operational baseline, not full release certification
 2. Install dependencies from the lockfile on clean platform runners.
 3. Build and launch-smoke the desktop app on Linux before packaging.
 4. Package Linux AppImage/deb, Windows NSIS, and macOS dmg/zip outputs.
-5. Generate SHA-256 checksums beside every platform's artifacts.
-6. Upload artifacts for inspection; publish them to a GitHub Release only for version tags.
-7. Verify install, launch, quit, workspace recovery, and asset restoration on clean machines before calling a release certified.
+5. Generate and verify SHA-256 checksums within each platform job. The per-platform checksum list is removed before uploading so platform checksum files do not collide when artifacts are combined.
+6. Upload each platform's installers as a temporary Actions artifact for inspection. Pull-request artifacts are retained for 14 days and are not public releases.
+7. For a version tag, download all platform artifacts, generate one release-wide `SHA256SUMS.txt`, verify every listed file, then publish the GitHub Release.
+8. Verify install, launch, quit, workspace recovery, and asset restoration on clean machines before calling a release certified.
 
 A successful CI run does not prove cross-platform behavior, performance on low-end hardware, full interactive scene persistence, or secure production readiness. Those require explicit acceptance testing.

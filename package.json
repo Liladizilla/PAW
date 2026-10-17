@@ -58,7 +58,8 @@
         "deb"
       ],
       "category": "Development",
-      "maintainer": "Charis Chara <characharis01@gmail.com>"
+      "maintainer": "Charis Chara <characharis01@gmail.com>",
+      "syncDesktopName": true
     },
     "win": {
       "target": [
@@ -71,7 +72,8 @@
         "zip"
       ]
     },
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "desktopName": "P.A.W. — Personal Agent Workspace"
   },
   "main": "out/main/index.js"
 }
