@@ -49,3 +49,24 @@ test('rebase inside threshold is a no-op and participant registration is guarded
   assert.equal(coordinator.rebase({ x: 100, y: 0, z: 0 }).changed, false)
   assert.equal(state.offset, 0)
 })
+
+
+test('prepare failure leaves origin and owners untouched', () => {
+  const coordinator = new WorldOriginCoordinator(), first = { offset: 10 }
+  coordinator.register(participant('first', first))
+  coordinator.register({ id: 'prepare-failure', prepareRebase() { throw new Error('prepare failed') } })
+  assert.throws(() => coordinator.rebase({ x: 2700, y: 0, z: 0 }, 256, 64), /prepare failed/)
+  assert.deepEqual(coordinator.origin, { x: 0, y: 0, z: 0 }); assert.equal(first.offset, 10)
+})
+
+test('rollback runs in reverse order after a commit failure', () => {
+  const coordinator = new WorldOriginCoordinator(), events: string[] = []
+  const make = (id: string, fails = false) => ({ id, prepareRebase() { return {
+    commit: () => { events.push('commit:' + id); if (fails) throw new Error('boom') },
+    rollback: () => { events.push('rollback:' + id) }
+  } } })
+  coordinator.register(make('a')); coordinator.register(make('b')); coordinator.register(make('c', true))
+  assert.throws(() => coordinator.rebase({ x: 2700, y: 0, z: 0 }, 256, 64), /boom/)
+  assert.deepEqual(events, ['commit:a','commit:b','commit:c','rollback:c','rollback:b','rollback:a'])
+  assert.deepEqual(coordinator.origin, { x: 0, y: 0, z: 0 })
+})
