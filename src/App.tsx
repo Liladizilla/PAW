@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, Search, Send, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
 import { ArcRotateCamera, Color3, Curve3, Engine, HemisphericLight, MeshBuilder, PBRMaterial, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
 import { demoGraph } from './runtime/demo-graph'
@@ -160,7 +160,7 @@ export default function App(){
     const timer=window.setInterval(()=>void refresh(),1000)
     return()=>{cancelled=true;window.clearInterval(timer)}
   },[activeRun?.id,activeRun?.workspaceId,activeRun?.status])
-  const select=(id:string)=>setSelected(id)
+  const select=useCallback((id:string)=>setSelected(id),[])
   const active=agents.find(a=>a.id===selected)??agents[0]
   return <main className="app">
     <header className="top"><div className="brand"><span className="brandicon"><Boxes size={21}/></span><div><b>P.A.W.</b><small>PERSONAL AGENT WORKSPACE</small></div></div><span className="workspace-tag"><i/> LOCAL WORKSPACE</span><div className="topright"><Settings2 size={16}/><span className="avatar">P</span></div></header>
