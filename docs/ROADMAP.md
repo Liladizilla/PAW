@@ -143,5 +143,7 @@ The repository now includes a typed graph validator/planner, a bounded-concurren
 - [ ] Profile repeatable cold-start and steady-state workloads on a real integrated-graphics reference device.
 - [ ] Set and enforce measured frame-time, memory, import-time, and long-session leak budgets.
 - [x] Define and test a transactional origin-rebase participant contract with commit/rollback behavior.
+- [x] Add a generic render-position participant adapter with staged mutation, rollback, finite-coordinate validation and dynamic owner lookup.
+- [ ] Add explicit adapters for camera target, thin-instance matrices, simulation coordinates and chunk streaming before enabling live rebasing.
 - [ ] Integrate world-origin rebasing atomically across renderer transforms, camera focus, traffic, crowd, imported assets, and persisted world coordinates.
 - [ ] Verify rebasing with travel tests across multiple chunk boundaries and save/reload round trips before calling the world effectively unbounded.
