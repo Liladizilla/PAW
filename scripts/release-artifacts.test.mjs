@@ -6,78 +6,21 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const verifier = new URL('./verify-release-artifacts.mjs', import.meta.url)
+async function fixture(t, files) { const directory = await mkdtemp(join(tmpdir(), 'paw-release-artifacts-')); t.after(async () => rm(directory, { recursive: true, force: true })); for (const name of files) await writeFile(join(directory, name), 'fake installer bytes'); return directory }
+function verify(platform, directory) { return execFileSync(process.execPath, [verifier.pathname, platform, directory], { encoding: 'utf8' }) }
 
-async function fixture(t, files) {
-  const directory = await mkdtemp(join(tmpdir(), 'paw-release-artifacts-'))
-  t.after(async () => rm(directory, { recursive: true, force: true }))
-  for (const name of files) await writeFile(join(directory, name), 'fake installer bytes')
-  return directory
-}
-
-function verify(platform, directory) {
-  return execFileSync(process.execPath, [verifier.pathname, platform, directory], { encoding: 'utf8' })
-}
-
-test('release artifact verifier accepts Linux native architecture aliases and ignores builder metadata', async t => {
-  const directory = await fixture(t, [
-    'P.A.W.-0.1.0-linux-x86_64.AppImage',
-    'P.A.W.-0.1.0-linux-amd64.deb',
-    'P.A.W.-0.1.0-linux-x86_64.AppImage.blockmap',
-    'builder-debug.yml'
-  ])
-  assert.match(verify('linux', directory), /Verified linux release artifacts/)
+test('accepts actual Linux filenames and ignores builder metadata', async t => {
+ const directory = await fixture(t, ['P.A.W-0.1.0-linux-x86_64.AppImage','P.A.W-0.1.0-linux-amd64.deb','P.A.W-0.1.0-linux-x86_64.AppImage.blockmap','builder-debug.yml'])
+ assert.match(verify('linux', directory), /Verified linux release artifacts/)
 })
-
-test('release artifact verifier accepts Windows and macOS package sets and ignores auxiliary files', async t => {
-  const windows = await fixture(t, [
-    'P.A.W.-0.1.0-win-x64.exe',
-    'P.A.W.-0.1.0-win-x64.exe.blockmap',
-    'P.A.W.-0.1.0-win-x64.__uninstaller.exe',
-    'builder-debug.yml'
-  ])
-  assert.match(verify('win', windows), /Verified win release artifacts/)
-
-  const mac = await fixture(t, [
-    'P.A.W.-0.1.0-mac-arm64.dmg',
-    'P.A.W.-0.1.0-mac-arm64.zip',
-    'P.A.W.-0.1.0-mac-arm64.dmg.blockmap',
-    'P.A.W.-0.1.0-mac-arm64.zip.blockmap'
-  ])
-  assert.match(verify('mac', mac), /Verified mac release artifacts/)
+test('accepts actual Windows and macOS names and ignores auxiliary files', async t => {
+ const windows = await fixture(t, ['P.A.W-0.1.0-win-x64.exe','P.A.W-0.1.0-win-x64.exe.blockmap','P.A.W-0.1.0-win-x64.__uninstaller.exe','builder-debug.yml'])
+ assert.match(verify('win', windows), /Verified win release artifacts/)
+ const mac = await fixture(t, ['P.A.W-0.1.0-mac-arm64.dmg','P.A.W-0.1.0-mac-arm64.zip','P.A.W-0.1.0-mac-arm64.dmg.blockmap','P.A.W-0.1.0-mac-arm64.zip.blockmap'])
+ assert.match(verify('mac', mac), /Verified mac release artifacts/)
 })
-
-test('release artifact verifier rejects a missing required package format', async t => {
-  const directory = await fixture(t, ['P.A.W.-0.1.0-linux-x64.AppImage'])
-  assert.throws(() => verify('linux', directory))
-})
-
-test('release artifact verifier rejects an unexpected version or platform filename', async t => {
-  const directory = await fixture(t, [
-    'P.A.W.-0.1.0-linux-x64.AppImage',
-    'P.A.W.-0.1.0-linux-x64.deb',
-    'P.A.W.-0.2.0-linux-x64.deb'
-  ])
-  assert.throws(() => verify('linux', directory))
-})
-
-test('release artifact verifier rejects unsupported architectures', async t => {
-  const directory = await fixture(t, [
-    'P.A.W.-0.1.0-linux-ia32.AppImage',
-    'P.A.W.-0.1.0-linux-ia32.deb'
-  ])
-  assert.throws(() => verify('linux', directory))
-})
-
-test('release artifact verifier rejects empty installer files', async t => {
-  const directory = await fixture(t, [
-    'P.A.W.-0.1.0-linux-x64.AppImage',
-    'P.A.W.-0.1.0-linux-x64.deb'
-  ])
-  await writeFile(join(directory, 'P.A.W.-0.1.0-linux-x64.deb'), '')
-  assert.throws(() => verify('linux', directory))
-})
-
-test('release artifact verifier rejects unknown platforms', async t => {
-  const directory = await fixture(t, ['P.A.W.-0.1.0-linux-x64.AppImage'])
-  assert.throws(() => verify('freebsd', directory))
-})
+test('rejects a missing required package format', async t => { const directory = await fixture(t, ['P.A.W-0.1.0-linux-x64.AppImage']); assert.throws(() => verify('linux', directory)) })
+test('rejects an unexpected version or platform filename', async t => { const directory = await fixture(t, ['P.A.W-0.1.0-linux-x64.AppImage','P.A.W-0.1.0-linux-x64.deb','P.A.W-0.2.0-linux-x64.deb']); assert.throws(() => verify('linux', directory)) })
+test('rejects unsupported architectures', async t => { const directory = await fixture(t, ['P.A.W-0.1.0-linux-ia32.AppImage','P.A.W-0.1.0-linux-ia32.deb']); assert.throws(() => verify('linux', directory)) })
+test('rejects empty installer files', async t => { const directory = await fixture(t, ['P.A.W-0.1.0-linux-x64.AppImage','P.A.W-0.1.0-linux-x64.deb']); await writeFile(join(directory, 'P.A.W-0.1.0-linux-x64.deb'), ''); assert.throws(() => verify('linux', directory)) })
+test('rejects unknown platforms', async t => { const directory = await fixture(t, ['P.A.W-0.1.0-linux-x64.AppImage']); assert.throws(() => verify('freebsd', directory)) })
