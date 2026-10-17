@@ -234,8 +234,10 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     const stationMark=MeshBuilder.CreateBox('metro-sign-amber',{width:1.7,height:.06,depth:.1},scene);stationMark.position.set(0,2.05,8.23);stationMark.material=material('metro-sign-amber-mat','#d8b57b','#745a30')
     // Ambient city simulation: civilians are not AI agents and never imply runtime work.
     // Thin instances keep a dense crowd inexpensive to render on integrated graphics.
-    type Pedestrian={axis:'x'|'z';fixed:number;dir:number;depth:number;lane:number;side:number;speed:number;x:number;z:number;mode:'queue'|'approach'|'cross'|'destination'|'return';batch:number}
+    type Pedestrian={index:number;axis:'x'|'z';fixed:number;dir:number;depth:number;lane:number;side:number;speed:number;x:number;z:number;mode:'queue'|'approach'|'cross'|'destination'|'return';batch:number}
     const pedestrianCount=1008
+    const hardwareThreads=typeof navigator!=='undefined'?(navigator.hardwareConcurrency||4):4
+    let activePedestrianCount=hardwareThreads>=8?1008:hardwareThreads>=4?720:420
     const pedestrians:Pedestrian[]=[]
     const crosswalks:[ 'x'|'z',number ][]=[['x',-3.9],['x',3.9],['z',-3.9],['z',3.9]]
     const bodyTemplates:Mesh[]=[]
@@ -260,7 +262,7 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       const x=axis==='x'?start:queueOffset
       const z=axis==='z'?start:queueOffset
       const batch=i%3
-      const person:Pedestrian={axis,fixed,dir,depth,lane,side,speed:1.05+(i%7)*.055,x,z,mode:'queue',batch}
+      const person:Pedestrian={index:i,axis,fixed,dir,depth,lane,side,speed:1.05+(i%7)*.055,x,z,mode:'queue',batch}
       pedestrians.push(person);crowdBatches[batch].people.push(person)
     }
     const matrixFor=(x:number,y:number,z:number,yaw=0,scale=new Vector3(1,1,1))=>
@@ -274,8 +276,9 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       })
       bodyTemplates[batch].thinInstanceSetBuffer('matrix',group.bodyData,16,true)
       headTemplates[batch].thinInstanceSetBuffer('matrix',group.headData,16,true)
-      bodyTemplates[batch].thinInstanceCount=group.people.length
-      headTemplates[batch].thinInstanceCount=group.people.length
+      const visibleCount=group.people.filter(person=>person.index<activePedestrianCount).length
+      bodyTemplates[batch].thinInstanceCount=visibleCount
+      headTemplates[batch].thinInstanceCount=visibleCount
     }
     // Four traffic approaches; cars are kinematic and respect the signal plus a following gap.
     type Vehicle={axis:'x'|'z';lane:number;dir:number;coordinate:number;speed:number;body:Mesh;cabin:Mesh}
@@ -331,8 +334,9 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     const updateCrowd=(dt:number,walkAllowed:boolean)=>{
       // Spatial hash limits collision checks to nearby people instead of comparing every pair.
       crowdSpatialIndex.clear()
-      pedestrians.forEach((p,index)=>crowdSpatialIndex.set(String(index),{x:p.x,z:p.z},p))
+      pedestrians.forEach(p=>{if(p.index<activePedestrianCount)crowdSpatialIndex.set(String(p.index),{x:p.x,z:p.z},p)})
       for(const p of pedestrians){
+        if(p.index>=activePedestrianCount)continue
         const start=p.dir>0?-3.55:3.55
         const end=-start
         const queueOffset=p.fixed+p.side*(.65+p.depth)
@@ -381,12 +385,16 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
         const group=crowdBatches[batch]
         group.bodyData.fill(0);group.headData.fill(0)
         group.people.forEach((p,index)=>{
+          if(p.index>=activePedestrianCount)return
           const movingAxis=(p.mode==='destination'||p.mode==='return')?(p.axis==='x'?'z':'x'):p.axis
           const facing=(p.mode==='destination')?p.side:(p.mode==='return')?-p.side:p.dir
           const yaw=movingAxis==='x'?(facing>0?Math.PI/2:-Math.PI/2):(facing>0?0:Math.PI)
           matrixFor(p.x-1000,1000.48,p.z-1000,yaw).copyToArray(group.bodyData,index*16)
           matrixFor(p.x-1000,1001.0,p.z-1000,yaw).copyToArray(group.headData,index*16)
         })
+        const visibleCount=group.people.filter(person=>person.index<activePedestrianCount).length
+        bodyTemplates[batch].thinInstanceCount=visibleCount
+        headTemplates[batch].thinInstanceCount=visibleCount
         bodyTemplates[batch].thinInstanceBufferUpdated('matrix')
         headTemplates[batch].thinInstanceBufferUpdated('matrix')
       }
@@ -488,6 +496,20 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       }
       updateCrowd(dt,isWalkPhase(phase))
       })
+    })
+    let qualityCheckElapsed=0
+    let lastPopulationAdjustment=0
+    scene.onBeforeRenderObservable.add(()=>{
+      qualityCheckElapsed+=engine.getDeltaTime()/1000
+      if(qualityCheckElapsed<2)return
+      qualityCheckElapsed=0
+      const fps=engine.getFps()
+      const now=performance.now()
+      if(now-lastPopulationAdjustment<6000)return
+      let next=activePedestrianCount
+      if(fps<24&&activePedestrianCount>240)next=Math.max(240,Math.floor(activePedestrianCount*.75/24)*24)
+      else if(fps>54&&activePedestrianCount<1008)next=Math.min(1008,activePedestrianCount+96)
+      if(next!==activePedestrianCount){activePedestrianCount=next;lastPopulationAdjustment=now}
     })
     let previousSelection=''
     scene.onBeforeRenderObservable.add(()=>{
@@ -629,7 +651,7 @@ export default function App(){
     <header className="top"><div className="brand"><span className="brandicon"><Boxes size={21}/></span><div><b>P.A.W.</b><small>PERSONAL AGENT WORKSPACE</small></div></div><span className="workspace-tag"><i/> LOCAL WORKSPACE</span><div className="topright"><Settings2 size={16}/><span className="avatar">P</span></div></header>
     <nav className="rail"><Network/><Cpu/><Workflow/><BrainCircuit/><TerminalSquare/><div className="spacer"/><ShieldCheck/></nav>
     <section className="layout"><aside className="left"><div className="eyebrow">WORKSPACE</div><h1>Agent network</h1><label className="search"><Search size={14}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find agents"/></label><div className="eyebrow section">NETWORK OBJECTS <span>{agents.length.toString().padStart(2,'0')}</span></div>{agents.filter(a=>(a.name+a.role).toLowerCase().includes(query.toLowerCase())).map(a=><button key={a.id} className={'agent '+(selected===a.id?'chosen':'')} onClick={()=>select(a.id)}><span className="glyph" style={{color:a.color}}><Cpu size={16}/></span><span><b>{a.name}</b><small>{a.role}</small></span><i className={a.state.toLowerCase()}/></button>)}<div className="runtime"><div className="eyebrow">RUNTIME STATUS</div><b><Activity size={15}/> Local executor available</b><small>Deterministic typed nodes run in the desktop main process. External tools remain unavailable unless registered behind policy.</small><button className="provider-button primary" onClick={runDemo} disabled={runBusy||!!(activeRun&&['queued','running','pause_requested','paused','cancel_requested'].includes(activeRun.status))}>{runBusy?'Starting…':'Run local smoke test'}</button><small>{runMessage}</small><div className="execution-nodes" aria-label="Live demo graph execution status"><div className="eyebrow">DEMO GRAPH NODES</div>{demoGraph.nodes.map(node=>{const status=nodeStatuses.get(node.id)??(activeRun?'waiting':'not run');return <div className="execution-node" key={node.id}><span><b>{node.label??node.id}</b><small>{node.type}</small></span><i className={'node-state '+status.replace(' ','-')}>{status.toUpperCase()}</i></div>})}</div>{activeRun&&<><small>RUN {activeRun.id.slice(0,8)} · {activeRun.status.toUpperCase()}</small>{activeRun&&['running','pause_requested'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('pause')}>Pause</button>}{activeRun&&activeRun.status==='paused'&&<button className="provider-button" onClick={()=>void controlRun('resume')}>Resume</button>}{activeRun&&['running','pause_requested','paused'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('cancel')}>Cancel run</button>}</>}</div></aside>
-    <section className="viewport"><div className="viewhead"><div><div className="eyebrow">SPATIAL WORKSPACE / METROPOLITAN GRID</div><h2>Agent City</h2></div><div className="spatial"><Layers3 size={13}/> SPATIAL <button className="camera-control" onClick={()=>cameraControl.current?.focus(selected)} title="Focus selected agent" aria-label="Focus selected agent"><Maximize2 size={14}/></button><button className="camera-control reset-view" onClick={()=>cameraControl.current?.reset()} title="Reset camera" aria-label="Reset camera"><RotateCcw size={13}/></button><button className="camera-control" onClick={()=>void importModel()} disabled={importBusy} title="Import a GLB model" aria-label="Import a GLB model"><Upload size={14}/></button></div></div><div className="scene"><World onSelect={select} selected={selected} cameraControl={cameraControl}/><div className="scene-label">CENTRAL DISTRICT / {agents.length} AI AGENTS · 1,008 PEDESTRIANS</div><div className="city-legend"><span><i className="legend-metro"/>METRO HUB</span><span><i className="legend-research"/>RESEARCH</span><span><i className="legend-build"/>ENGINEERING</span><span><i className="legend-review"/>REVIEW</span><span><i className="legend-traffic"/>SIGNAL-CONTROLLED TRAFFIC</span></div><div className="hint">Drag to orbit · Scroll to zoom · Select an agent to inspect</div></div><footer className="viewfoot"><span>GRAPH <b>{activeRun?.status?.toUpperCase()??'IDLE'}</b></span><span>NODES <b>{demoGraph.nodes.length.toString().padStart(2,'0')}</b></span><span className="spacer"/><span title={importMessage}>{importBusy?'IMPORTING MODEL':importMessage}</span> · CITY <b>PROCEDURAL GRID</b> · CAMERA <b>FREE</b></footer></section>
+    <section className="viewport"><div className="viewhead"><div><div className="eyebrow">SPATIAL WORKSPACE / METROPOLITAN GRID</div><h2>Agent City</h2></div><div className="spatial"><Layers3 size={13}/> SPATIAL <button className="camera-control" onClick={()=>cameraControl.current?.focus(selected)} title="Focus selected agent" aria-label="Focus selected agent"><Maximize2 size={14}/></button><button className="camera-control reset-view" onClick={()=>cameraControl.current?.reset()} title="Reset camera" aria-label="Reset camera"><RotateCcw size={13}/></button><button className="camera-control" onClick={()=>void importModel()} disabled={importBusy} title="Import a GLB model" aria-label="Import a GLB model"><Upload size={14}/></button></div></div><div className="scene"><World onSelect={select} selected={selected} cameraControl={cameraControl}/><div className="scene-label">CENTRAL DISTRICT / {agents.length} AI AGENTS · 1,008 PEDESTRIAN CAPACITY</div><div className="city-legend"><span><i className="legend-metro"/>METRO HUB</span><span><i className="legend-research"/>RESEARCH</span><span><i className="legend-build"/>ENGINEERING</span><span><i className="legend-review"/>REVIEW</span><span><i className="legend-traffic"/>SIGNAL-CONTROLLED TRAFFIC</span></div><div className="hint">Drag to orbit · Scroll to zoom · Select an agent to inspect</div></div><footer className="viewfoot"><span>GRAPH <b>{activeRun?.status?.toUpperCase()??'IDLE'}</b></span><span>NODES <b>{demoGraph.nodes.length.toString().padStart(2,'0')}</b></span><span className="spacer"/><span title={importMessage}>{importBusy?'IMPORTING MODEL':importMessage}</span> · CITY <b>PROCEDURAL GRID</b> · CAMERA <b>FREE</b></footer></section>
     <aside className="inspector"><div className="eyebrow">OBJECT INSPECTOR</div><h2>Agent details</h2><div className="object"><span style={{color:active.color}}><Cpu size={24}/></span><div><b>{active.name}</b><small>{active.role}</small></div><i>{active.state}</i></div><div className="section"><div className="eyebrow">IDENTITY</div><p><span>Node ID</span><code>{active.id}</code></p><p><span>Execution</span><b>Not connected</b></p><p><span>Autonomy</span><b>Not configured</b></p></div><div className="section"><div className="eyebrow">CURRENT TASK</div><div className="task"><b>Task summary</b><p>{active.task}</p><small>No live reasoning or tool activity available.</small></div></div><div className="section"><div className="eyebrow">CONNECTIONS</div><p><span>Dependencies</span><b>{active.id==='orchestrator'?'3 downstream':'1 upstream'}</b></p><p><span>Inputs / outputs</span><b>Not available</b></p></div><div className="section"><div className="eyebrow">OBSERVABILITY / RECENT EVENTS</div><div className="task">Recent events for the selected run. Start a smoke test to inspect node lifecycle events. Model-driven agent reasoning is not connected yet.</div><div className="approval-list">{historyEvents.filter(event=>!activeRun||event.payload.runId===activeRun.id).slice().reverse().slice(0,6).map(event=><article className="approval-item" key={event.id}><b>{event.type}</b><small>{new Date(event.timestamp).toLocaleTimeString()}</small><p>{typeof event.payload.nodeId==='string'?'Node '+event.payload.nodeId:typeof event.payload.status==='string'?'Status '+event.payload.status:'Workspace event'}</p></article>)}</div></div><div className="section approval-panel"><div className="eyebrow"><ShieldCheck size={12}/> PERSISTENT APPROVAL QUEUE <span>{approvals.length.toString().padStart(2,'0')}</span></div><p className="approval-note">Manual approval ledger. Approving a record does not execute its described action.</p><label className="provider-label">ACTION</label><input className="provider-input" value={approvalAction} onChange={e=>setApprovalAction(e.target.value)} placeholder="e.g. write-file"/><label className="provider-label">SUMMARY</label><textarea className="provider-input provider-prompt" value={approvalSummary} onChange={e=>setApprovalSummary(e.target.value)} placeholder="Describe the proposed operation and its scope…" rows={2}/><button className="provider-button" onClick={createApproval}>Create pending approval</button><div className="approval-list">{approvals.map(item=><article className="approval-item" key={item.id}><b>{item.action}</b><p>{item.summary}</p><small>{new Date(item.createdAt).toLocaleString()}</small><div><button onClick={()=>decideApproval(item.id,'approved')}>Approve</button><button onClick={()=>decideApproval(item.id,'denied')}>Deny</button></div></article>)}</div><small className="approval-message">{approvalMessage}</small></div><div className="section provider-panel"><div className="eyebrow"><KeyRound size={12}/> MODEL PROVIDER / GROQ</div><div className="provider-status"><i className={providerConfigured?'connected':''}/>{providerMessage}</div><label className="provider-label">API KEY <span>ENCRYPTED AT REST</span></label><input className="provider-input" type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="gsk_… (desktop app only)"/><button className="provider-button" onClick={saveGroq} disabled={providerBusy||!apiKey.trim()}>Store credential securely</button><label className="provider-label">PROMPT</label><textarea className="provider-input provider-prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Ask the Groq model something…" rows={3}/><button className="provider-button primary" onClick={askGroq} disabled={providerBusy||!providerConfigured||!prompt.trim()}><Send size={12}/>{providerBusy?'Working…':'Send prompt'}</button>{answer&&<div className="provider-answer">{answer}</div>}</div><div className="safe">The local typed graph executor is enabled for deterministic built-in nodes. External tools and autonomous model-driven execution remain disabled until policy, approval and tool adapters are connected.</div></aside></section>
     <footer className="status"><span>â  DEVELOPMENT PREVIEW</span><span>LOCAL GRAPH ENGINE <b>GUARDED</b></span><span>MODEL <b>{providerConfigured?'GROQ CONFIGURED':'NOT CONFIGURED'}</b></span><span className="spacer"/>v0.1.0 Â· Electron Â· Babylon.js</footer>
   </main>
