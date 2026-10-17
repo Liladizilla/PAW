@@ -16,6 +16,8 @@ export function validateAssetCatalog(value:unknown):{valid:boolean;issues:string
   if(typeof a.format!=='string'||!a.format.trim())issues.push(`assets[${i}] has no format`)
   if(!Array.isArray(a.tags)||!a.tags.every(t=>typeof t==='string'))issues.push(`assets[${i}] tags must be strings`)
   if(!a.importSettings||typeof a.importSettings!=='object'||Array.isArray(a.importSettings))issues.push(`assets[${i}] import settings must be an object`)
+  else if(!Object.values(a.importSettings).every(v=>['string','number','boolean'].includes(typeof v)&&(typeof v!=='number'||Number.isFinite(v))))issues.push(`assets[${i}] import settings must contain only finite scalar values`)
+  if(a.contentHash!==undefined&&(typeof a.contentHash!=='string'||!a.contentHash.trim()))issues.push(`assets[${i}] content hash must be a non-empty string when provided`)
   if(a.bounds){const v=[a.bounds.min,a.bounds.max];if(!v.every(p=>p&&['x','y','z'].every(k=>Number.isFinite(p[k as 'x'|'y'|'z']))))issues.push(`assets[${i}] has invalid bounds`);else if(a.bounds.min.x>a.bounds.max.x||a.bounds.min.y>a.bounds.max.y||a.bounds.min.z>a.bounds.max.z)issues.push(`assets[${i}] bounds are inverted`)}
  }
  return {valid:issues.length===0,issues}
