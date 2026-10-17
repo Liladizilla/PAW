@@ -177,8 +177,8 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     for(const axis of ['x','z'] as const){
       for(const lane of [-.82,.82]){
         for(let n=0;n<4;n++){
-          const dir=n%2===0?1:-1
-          const coordinate=(n<2?-24:18)+(n%2)*7
+          const dir=lane<0?1:-1
+          const coordinate=dir>0?-32+n*8:32-n*8
           const body=MeshBuilder.CreateBox('traffic-car-'+axis+'-'+lane+'-'+n,{width:axis==='x'?1.55:.82,height:.48,depth:axis==='x'?.82:1.55},scene)
           body.material=material('traffic-car-paint-'+axis+'-'+lane+'-'+n,carPaint[(n+(axis==='z'?1:0))%carPaint.length])
           const cabin=MeshBuilder.CreateBox('traffic-cabin-'+axis+'-'+lane+'-'+n,{width:axis==='x'?.82:.55,height:.32,depth:axis==='x'?.55:.82},scene)
