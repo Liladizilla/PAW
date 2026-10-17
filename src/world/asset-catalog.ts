@@ -12,7 +12,7 @@ export function validateAssetCatalog(value:unknown):{valid:boolean;issues:string
   const a=item as AssetRecord
   if(typeof a.id!=='string'||!a.id.trim())issues.push(`assets[${i}] has empty ID`);else if(ids.has(a.id))issues.push(`duplicate asset ID: ${a.id}`);else ids.add(a.id)
   if(!['mesh','material','texture','audio','scene','prefab'].includes(a.kind))issues.push(`assets[${i}] has unsupported kind`)
-  if(typeof a.uri!=='string'||!a.uri.trim())issues.push(`assets[${i}] has empty URI`);else if(!/^assets\\/[a-zA-Z0-9._/-]+$/i.test(a.uri)||a.uri.includes(String.fromCharCode(92))||a.uri.split('/').some(part=>!part||part==='.'||part==='..'||part.length>255))issues.push(`assets[${i}] URI must be a safe workspace-relative assets/ path`)
+  if(typeof a.uri!=='string'||!a.uri.trim())issues.push(`assets[${i}] has empty URI`);else if(!a.uri.startsWith('assets/')||a.uri.includes(String.fromCharCode(92))||!a.uri.slice(7).split('/').every(part=>/^[a-zA-Z0-9._-]+$/.test(part)&&part!=='.'&&part!=='..'&&part.length<=255))issues.push(`assets[${i}] URI must be a safe workspace-relative assets/ path`)
   if(typeof a.format!=='string'||!a.format.trim())issues.push(`assets[${i}] has no format`)
   if(!Array.isArray(a.tags)||!a.tags.every(t=>typeof t==='string'))issues.push(`assets[${i}] tags must be strings`)
   if(!a.importSettings||typeof a.importSettings!=='object'||Array.isArray(a.importSettings))issues.push(`assets[${i}] import settings must be an object`)
