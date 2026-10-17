@@ -135,3 +135,36 @@ test('long-distance streaming keeps world chunk identity and resource counts bou
     engine.dispose()
   }
 })
+
+
+test('sustained bidirectional travel keeps streamed resources bounded and returns to zero after disposal', () => {
+  const engine = new NullEngine(), scene = new Scene(engine)
+  const root = new TransformNode('stress-world-root', scene)
+  const streamer = createCityChunkStreamer(scene, 64, 2, root)
+  const maxMeshes = 25 * 30
+  try {
+    for (let step = 0; step < 120; step++) {
+      const worldX = (step % 2 === 0 ? 1 : -1) * (4096 + step * 1024)
+      const worldZ = (step % 3 === 0 ? -1 : 1) * (2048 + step * 512)
+      const origin = { x: Math.floor(worldX / 64) * 64, y: 0, z: Math.floor(worldZ / 64) * 64 }
+      const renderX = worldX - origin.x, renderZ = worldZ - origin.z
+      root.position.set(-origin.x, 0, -origin.z)
+      streamer.update(new Vector3(renderX, 0, renderZ), origin)
+      const stats = streamer.stats()
+      assert.equal(stats.loadedChunks, 25)
+      assert.ok(stats.meshes > 0 && stats.meshes <= maxMeshes)
+      assert.ok(stats.materials > 0 && stats.materials <= stats.meshes)
+      assert.equal(stats.meshes, scene.meshes.length)
+      assert.equal(stats.materials, scene.materials.length)
+      assert.equal(new Set(streamer.loadedIds()).size, 25)
+    }
+  } finally {
+    streamer.dispose()
+    assert.deepEqual(streamer.stats(), { loadedChunks: 0, meshes: 0, materials: 0 })
+    assert.equal(scene.meshes.length, 0)
+    assert.equal(scene.materials.length, 0)
+    root.dispose(false, false)
+    scene.dispose()
+    engine.dispose()
+  }
+})
