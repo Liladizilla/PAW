@@ -82,6 +82,14 @@ body { background: #101113; }
 }
 .camera-control:hover { background: #302d25; border-color: #6c5c40; transform: translateY(-1px); }
 .camera-control.reset-view { width: 25px; height: 25px; border-radius: 50%; }
+.agent:focus-visible, .camera-control:focus-visible, .provider-button:focus-visible, .approval-item button:focus-visible {
+  outline: 2px solid #d8b57b;
+  outline-offset: 3px;
+}
+.search:focus-within { border-color: #766344; }
+@media (prefers-reduced-motion: reduce) {
+  .camera-control { transition: none; }
+}
 .workspace-tag i { background: #d8b57b; }
 .rail { border-color: #292a2b; }
 .rail svg { transition: color .22s ease, transform .22s ease; }
