@@ -11,8 +11,8 @@ if (!existsSync(entry)) {
   process.exit(2)
 }
 const command = process.platform === 'linux' ? 'xvfb-run' : electron
-// CI has no physical GPU. Force Chromium's software renderer so Babylon can
-// initialize WebGL and the readiness signal tests the actual scene lifecycle.
+// CI has no physical GPU. Force Chromium's software renderer and verify that
+// Electron can compile shaders and render a real WebGL frame.
 const electronArgs = [
   '--no-sandbox',
   '--enable-unsafe-swiftshader',
@@ -44,4 +44,4 @@ if (!result.stdout?.includes('PAW_DESKTOP_SMOKE_RENDERER_READY')) {
   process.stderr.write('Desktop smoke test exited without the renderer-ready marker.\n')
   process.exit(1)
 }
-process.stdout.write('Desktop smoke test passed: Electron renderer and Babylon scene became ready.\n')
+process.stdout.write('Desktop smoke test passed: Electron renderer and WebGL frame rendered successfully.\n')
