@@ -34,4 +34,4 @@ if (!result.stdout?.includes('PAW_DESKTOP_SMOKE_RENDERER_READY')) {
   process.stderr.write('Desktop smoke test exited without the renderer-ready marker.\n')
   process.exit(1)
 }
-process.stdout.write('Desktop smoke test passed: Electron renderer became ready.\n')
+process.stdout.write('Desktop smoke test passed: Electron renderer and Babylon scene became ready.\n')
