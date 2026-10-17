@@ -15,10 +15,19 @@ export function loadStoredSceneSnapshot(storage: SnapshotStorage): SceneSnapshot
   const legacy = storage.getItem(LEGACY_SCENE_SNAPSHOT_STORAGE_KEY)
   if (canonical === null && legacy === null) return undefined
 
-  // Prefer canonical state when present, but do not discard a recoverable legacy copy
-  // until the canonical representation has been validated and persisted successfully.
-  const source = canonical ?? legacy
-  const snapshot = decodeSceneSnapshot(source as string)
+  // Prefer canonical state, but fall back to a valid legacy backup if canonical data
+  // is corrupt. Never remove the legacy copy until the recovered state is persisted.
+  let snapshot: SceneSnapshot
+  if (canonical !== null) {
+    try {
+      snapshot = decodeSceneSnapshot(canonical)
+    } catch (error) {
+      if (legacy === null) throw error
+      snapshot = decodeSceneSnapshot(legacy)
+    }
+  } else {
+    snapshot = decodeSceneSnapshot(legacy as string)
+  }
   storage.setItem(SCENE_SNAPSHOT_STORAGE_KEY, encodeSceneSnapshot(snapshot))
   if (legacy !== null) storage.removeItem(LEGACY_SCENE_SNAPSHOT_STORAGE_KEY)
   return snapshot
