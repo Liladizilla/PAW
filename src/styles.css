@@ -190,3 +190,48 @@ body { background: #101113; }
   .left { padding: 16px 12px; }
   .inspector { padding: 17px 12px; }
 }
+
+
+/* Runtime graph telemetry: status comes from durable execution events. */
+.execution-nodes {
+  display: grid;
+  gap: 7px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid #2b2c2a;
+}
+.execution-nodes > .eyebrow { margin-bottom: 1px; }
+.execution-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid #30312e;
+  border-radius: 9px;
+  background: #171817;
+}
+.execution-node > span { display: grid; gap: 3px; min-width: 0; }
+.execution-node b {
+  color: #d5d0c5;
+  font: 10px var(--mono);
+  overflow-wrap: anywhere;
+}
+.execution-node small { color: #827f76; font-size: 9px; }
+.node-state {
+  flex: 0 0 auto;
+  padding: 4px 6px;
+  border: 1px solid #393a36;
+  border-radius: 999px;
+  color: #99968d;
+  background: #20211f;
+  font: normal 8px var(--mono);
+  letter-spacing: .04em;
+}
+.node-state.running { color: #f0d5a4; border-color: #6e5b3e; background: #30291f; }
+.node-state.succeeded { color: #a8d8c7; border-color: #394f43; background: #1a241e; }
+.node-state.failed, .node-state.blocked { color: #e0a5a0; border-color: #5b3936; background: #291b1a; }
+@media (prefers-reduced-motion: reduce) {
+  .execution-node, .node-state { transition: none; }
+}
