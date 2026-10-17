@@ -68,5 +68,6 @@
       ]
     },
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
-  }
+  },
+  "main": "out/main/index.js"
 }
