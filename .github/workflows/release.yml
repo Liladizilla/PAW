@@ -35,10 +35,13 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
+            platform: linux
             command: npm run package:linux
           - os: windows-latest
+            platform: win
             command: npm run package:windows
           - os: macos-latest
+            platform: mac
             command: npm run package:mac
     runs-on: ${{ matrix.os }}
     steps:
@@ -53,6 +56,8 @@ jobs:
         run: npm ci
       - name: Build and package
         run: ${{ matrix.command }}
+      - name: Verify required native installers
+        run: node scripts/verify-release-artifacts.mjs ${{ matrix.platform }} release
       - name: Generate SHA-256 checksums
         run: node scripts/write-checksums.mjs release
       - name: Verify generated checksums
