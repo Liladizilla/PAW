@@ -27,16 +27,18 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     const host=createEngineHost(canvas.current)
     const {engine,scene,camera}=host
     const cityStreamer=createCityChunkStreamer(scene)
+    const savedEntityTransforms=new Map<string,{x:number;y:number;z:number}>()
     try{
       const saved=localStorage.getItem('paw.scene.snapshot.v1')
       if(saved){
         const snapshot=decodeSceneSnapshot(saved)
         camera.alpha=snapshot.camera.alpha;camera.beta=snapshot.camera.beta;camera.radius=snapshot.camera.radius
         camera.target.set(snapshot.camera.target.x,snapshot.camera.target.y,snapshot.camera.target.z)
+        for(const entity of snapshot.entities)savedEntityTransforms.set(entity.id,entity.transform.position)
       }
     }catch{localStorage.removeItem('paw.scene.snapshot.v1')}
     cameraControl.current={
-      focus:(id:string)=>{const agent=agents.find(item=>item.id===id);if(!agent)return;camera.target=new Vector3(agent.x,.8,agent.z);camera.radius=13},
+      focus:(id:string)=>{const agent=agents.find(item=>item.id===id);if(!agent)return;const p=savedEntityTransforms.get(agent.id);camera.target=new Vector3(p?.x??agent.x,.8,p?.z??agent.z);camera.radius=13},
       reset:()=>{camera.target=Vector3.Zero();camera.alpha=-Math.PI/2.2;camera.beta=1.04;camera.radius=185}
     }
     new HemisphericLight('ambient',new Vector3(.1,1,.1),scene).intensity=.9
@@ -362,17 +364,19 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     }
     const nodeMaterials=new Map<string,PBRMaterial>()
     for(const agent of agents){
+      const savedPosition=savedEntityTransforms.get(agent.id)
+      const agentX=savedPosition?.x??agent.x,agentZ=savedPosition?.z??agent.z
       const root=MeshBuilder.CreateCylinder(agent.id,{height:.72,diameterTop:.34,diameterBottom:.46,tessellation:12},scene)
-      root.position.set(agent.x,.83,agent.z);root.material=new PBRMaterial(agent.id+'-body-mat',scene)
+      root.position.set(agentX,.83,agentZ);root.material=new PBRMaterial(agent.id+'-body-mat',scene)
       const bodyMat=root.material as PBRMaterial;bodyMat.albedoColor=Color3.FromHexString(agent.color);bodyMat.metallic=.08;bodyMat.roughness=.72;nodeMaterials.set(agent.id,bodyMat);root.metadata={agentId:agent.id}
-      const head=MeshBuilder.CreateSphere(agent.id+'-head',{diameter:.3,segments:12},scene);head.position.set(agent.x,1.36,agent.z);head.material=material(agent.id+'-head-mat','#bda78c');head.metadata={agentId:agent.id}
+      const head=MeshBuilder.CreateSphere(agent.id+'-head',{diameter:.3,segments:12},scene);head.position.set(agentX,1.36,agentZ);head.material=material(agent.id+'-head-mat','#bda78c');head.metadata={agentId:agent.id}
       for(const side of [-1,1]){
         const arm=MeshBuilder.CreateCylinder(agent.id+'-arm-'+side,{height:.52,diameter:.12,tessellation:8},scene)
-        arm.position.set(agent.x+side*.27,.86,agent.z);arm.rotation.z=side*.13;arm.material=bodyMat;arm.metadata={agentId:agent.id}
+        arm.position.set(agentX+side*.27,.86,agentZ);arm.rotation.z=side*.13;arm.material=bodyMat;arm.metadata={agentId:agent.id}
         const leg=MeshBuilder.CreateCylinder(agent.id+'-leg-'+side,{height:.48,diameter:.14,tessellation:8},scene)
-        leg.position.set(agent.x+side*.13,.34,agent.z);leg.material=material(agent.id+'-leg-mat-'+side,'#343632');leg.metadata={agentId:agent.id}
+        leg.position.set(agentX+side*.13,.34,agentZ);leg.material=material(agent.id+'-leg-mat-'+side,'#343632');leg.metadata={agentId:agent.id}
       }
-      const badge=MeshBuilder.CreateBox(agent.id+'-badge',{width:.18,height:.1,depth:.06},scene);badge.position.set(agent.x,1.03,agent.z-.22);badge.material=material(agent.id+'-badge-mat',agent.color,agent.color);badge.metadata={agentId:agent.id}
+      const badge=MeshBuilder.CreateBox(agent.id+'-badge',{width:.18,height:.1,depth:.06},scene);badge.position.set(agentX,1.03,agentZ-.22);badge.material=material(agent.id+'-badge-mat',agent.color,agent.color);badge.metadata={agentId:agent.id}
     }
     for(const id of ['research','builder','validator']){
       const a=agents[0],b=agents.find(x=>x.id===id)!
@@ -441,9 +445,11 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     return()=>{
       try{
         localStorage.setItem('paw.scene.snapshot.v1',encodeSceneSnapshot({
-          schemaVersion:1,worldId:'paw-main-world',savedAt:new Date().toISOString(),
+          schemaVersion:2,worldId:'paw-main-world',savedAt:new Date().toISOString(),
           camera:{alpha:camera.alpha,beta:camera.beta,radius:camera.radius,target:{x:camera.target.x,y:camera.target.y,z:camera.target.z}},
-          loadedChunkIds:cityStreamer.loadedIds(),metadata:{engine:'babylonjs',snapshotVersion:1}
+          loadedChunkIds:cityStreamer.loadedIds(),
+          entities:agents.map(agent=>{const p=savedEntityTransforms.get(agent.id);return {id:agent.id,name:agent.name,transform:{position:{x:p?.x??agent.x,y:p?.y??.83,z:p?.z??agent.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true}}),
+          metadata:{engine:'babylonjs',snapshotVersion:2}
         }))
       }catch(error){console.warn('P.A.W. could not persist the scene view.',error)}
       cameraControl.current=null;window.removeEventListener('resize',resize);cityStreamer.dispose();host.dispose()
