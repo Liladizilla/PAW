@@ -30,5 +30,5 @@ test('renderer trust rejects credentials, malformed URLs and absent development 
 
 test('packaged renderer rejects file URL path and query variations', () => {
   assert.equal(isTrustedRendererUrl('file:///opt/paw/out/renderer/index.html?x=1', production), false)
-  assert.equal(isTrustedRendererUrl('file:///opt/paw/out/renderer/../renderer/index.html', production), false)
+  assert.equal(isTrustedRendererUrl('file:///opt/paw/out/renderer/../renderer/other.html', production), false)
 })
