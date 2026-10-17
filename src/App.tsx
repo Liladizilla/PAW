@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, RotateCcw, Search, Send, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
 import { ArcRotateCamera, Color3, Curve3, DirectionalLight, Engine, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
 import { demoGraph } from './runtime/demo-graph'
-import { generateCityLots, type CityLot } from './world/city-layout'
+import { generateCityLots } from './world/city-layout'
 
 type Agent = { id:string; name:string; role:string; color:string; x:number; z:number; state:string; task:string }
 type RunRecord = Awaited<ReturnType<typeof window.paw.createRun>>
@@ -55,12 +55,12 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     const dark=material('station-dark','#171a19')
     // Continuous arterial roads and sidewalks repeat beyond the viewport; the camera never opens on a tiny island.
     for(let coordinate=-320;coordinate<=320;coordinate+=32){
-      road('world-road-vertical-'+coordinate,coordinate,0,6,800)
-      road('world-road-horizontal-'+coordinate,0,coordinate,800,6)
-      sidewalk('world-walk-vertical-west-'+coordinate,coordinate-3.65,0,1.25,800)
-      sidewalk('world-walk-vertical-east-'+coordinate,coordinate+3.65,0,1.25,800)
-      sidewalk('world-walk-horizontal-north-'+coordinate,0,coordinate-3.65,800,1.25)
-      sidewalk('world-walk-horizontal-south-'+coordinate,0,coordinate+3.65,800,1.25)
+      road('world-road-vertical-'+coordinate,coordinate,0,6,2400)
+      road('world-road-horizontal-'+coordinate,0,coordinate,2400,6)
+      sidewalk('world-walk-vertical-west-'+coordinate,coordinate-3.65,0,1.25,2400)
+      sidewalk('world-walk-vertical-east-'+coordinate,coordinate+3.65,0,1.25,2400)
+      sidewalk('world-walk-horizontal-north-'+coordinate,0,coordinate-3.65,2400,1.25)
+      sidewalk('world-walk-horizontal-south-'+coordinate,0,coordinate+3.65,2400,1.25)
     }
     const road=(name:string,x:number,z:number,width:number,depth:number)=>{
       const mesh=MeshBuilder.CreateBox(name,{width,height:.09,depth},scene);mesh.position.set(x,.045,z);mesh.material=asphalt
