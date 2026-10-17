@@ -135,3 +135,27 @@ test('live root and camera stay stable across repeated positive and negative chu
     assert.deepEqual(camera.target, worldToRender(worldFocus, coordinator.origin))
   }
 })
+
+test('live-scene commit failure restores exact root and camera state', () => {
+  const coordinator = new WorldOriginCoordinator()
+  const root = { position: { x: 32, y: 0, z: -64 } }
+  const camera = { target: { x: 2700, y: 8, z: -2700 } }
+  const originalRoot = structuredClone(root.position)
+  const originalTarget = structuredClone(camera.target)
+  coordinator.register(createWorldRootRebaseParticipant('world-root', () => root))
+  coordinator.register(createCameraTargetRebaseParticipant('camera-target', () => camera))
+  coordinator.register({
+    id: 'injected-live-failure',
+    prepareRebase() {
+      return {
+        commit: () => { throw new Error('injected renderer commit failure') },
+        rollback: () => {}
+      }
+    }
+  })
+
+  assert.throws(() => coordinator.rebase({ x: 2700, y: 8, z: -2700 }), /injected renderer commit failure/)
+  assert.deepEqual(coordinator.origin, { x: 0, y: 0, z: 0 })
+  assert.deepEqual(root.position, originalRoot)
+  assert.deepEqual(camera.target, originalTarget)
+})
