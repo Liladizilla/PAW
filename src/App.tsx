@@ -17,6 +17,7 @@ import { applySavedEntityRecord, planAssetRehydration } from './world/asset-rehy
 import { assetRestorePrerequisiteStatus } from './world/asset-restore-prerequisites'
 import { normalizeAssetAvailabilityResults } from './world/asset-availability-results'
 import { formatAssetRestoreReport } from './world/asset-restore-report'
+import { describeUnavailableAssets } from './world/asset-restore-availability'
 import { FixedStepClock } from './world/simulation-clock'
 import { PerformanceMonitor, type PerformanceSnapshot } from './world/performance-monitor'
 import { evaluatePerformanceBudget } from './world/performance-budget'
@@ -460,14 +461,14 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         }
         const unavailable=new Map(availability.filter(item=>!item.available).map(item=>[item.uri,item.reason??'missing']))
         const missingCatalogMessages=plan.missing.map(missing=>missing.entityId+' → '+missing.assetId)
-        const missingFileMessages=availability.filter(item=>!item.available).map(item=>item.uri+' ('+(item.reason??'missing')+')')
+        const missingFileMessages=describeUnavailableAssets(availability,plan.ready.map(({entity,asset})=>({entityId:entity.id,uri:asset.uri})))
         const restoreFailures:Array<{entityId:string;reason:string}>=[]
         const restoredEntityIds:string[]=[]
         for(const missing of plan.missing)console.warn('P.A.W. saved entity references a missing catalog asset: '+missing.entityId+' ('+missing.assetId+')')
         for(const {entity,asset} of plan.ready){
           if(sceneDisposed)return
           const unavailableReason=unavailable.get(asset.uri)
-          if(unavailableReason){restoreFailures.push({entityId:entity.id,reason:'asset '+unavailableReason});console.warn('P.A.W. cannot restore '+entity.id+': asset file '+unavailableReason+' ('+asset.uri+')');continue}
+          if(unavailableReason){console.warn('P.A.W. cannot restore '+entity.id+': asset file '+unavailableReason+' ('+asset.uri+')');continue}
           try{
             const imported=await importWorkspaceAsset(asset,uri=>window.paw.resolveWorkspaceAsset(uri),assetDriver)
             if(sceneDisposed){imported.dispose();return}
