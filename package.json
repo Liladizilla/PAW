@@ -15,7 +15,8 @@
     "package:windows": "electron-vite build && electron-builder --win nsis",
     "package:mac": "electron-vite build && electron-builder --mac dmg zip",
     "test": "tsx --test src/runtime/*.test.ts src/world/*.test.ts",
-    "test:watch": "tsx --test --watch src/runtime/*.test.ts src/world/*.test.ts"
+    "test:watch": "tsx --test --watch src/runtime/*.test.ts src/world/*.test.ts",
+    "test:desktop-smoke": "xvfb-run -a env PAW_DESKTOP_SMOKE=1 ./node_modules/.bin/electron --no-sandbox out/main/index.js"
   },
   "dependencies": {
     "@babylonjs/core": "^8.20.0",
