@@ -19,7 +19,7 @@ Threats: malicious plugins/MCP servers; prompt injection in web pages, repositor
 
 ## IPC and local service
 
-Electron context isolation, sandbox and disabled Node integration are mandatory. Preload exposes typed allowlisted commands, never generic IPC, shell or filesystem access. Validate schemas, payload size, window ownership and rate limits. Bind local runtime to loopback only and authenticate local RPC with a random per-launch token or equivalent. Reject non-loopback requests and protect against cross-origin requests, DNS rebinding and unauthorized local processes. Apply restrictive Content Security Policy.
+Electron context isolation, sandbox and disabled Node integration are mandatory. Preload exposes typed allowlisted commands, never generic IPC, shell or filesystem access. Every IPC invocation must originate from the trusted top-level renderer entry point; packaged builds compare the exact local HTML URL and development builds compare the configured renderer origin/path. Validate schemas, payload size, window ownership and rate limits. Bind local runtime to loopback only and authenticate local RPC with a random per-launch token or equivalent. Reject non-loopback requests and protect against cross-origin requests, DNS rebinding and unauthorized local processes. Apply restrictive Content Security Policy.
 
 ## Tool capabilities
 
