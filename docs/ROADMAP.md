@@ -97,6 +97,7 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Rehydrate saved asset-backed scene entities from the validated local catalog and persist their entity records; asset-browser import UI, editable component authoring, undo/redo and full scene serialization remain open.
 - [x] Add Babylon NullEngine tests for chunk loading, movement-based eviction, idempotent updates and resource disposal.
 - [x] Add tested world/render coordinate conversions, chunk-snapped origin selection, and a transactional participant coordinator with rollback tests; live scene integration remains open.
+- [x] Add tested transactional adapters for ordinary render positions, camera focus, thin-instance matrix translations, and scalar X/Z simulation coordinates; live registration and all-owner atomic integration tests remain open.
 - [x] Add a reusable bounded fixed-step clock with catch-up limits and tests.
 - [x] Move the live crowd/traffic loop to the shared fixed-step clock; crowd neighbor queries use the spatial index.
 
