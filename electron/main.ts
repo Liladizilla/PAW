@@ -2,9 +2,9 @@ import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isTrustedRendererUrl } from './renderer-security'
-import { isSafeWorkspaceAssetUri } from './asset-path-security'
+import { isDisposableImportedGlbUri, isSafeWorkspaceAssetUri } from './asset-path-security'
 import { randomUUID } from 'node:crypto'
-import { copyFile, mkdir, readFile, realpath, stat } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, realpath, stat, unlink } from 'node:fs/promises'
 import { appendHistoryEvent, loadWorkspace, readHistory, saveWorkspace } from './persistence'
 import { clearGroqApiKey, configureGroqApiKey, groqChat, groqProviderStatus } from './providers/groq'
 import { decideApproval, listApprovals, requestApproval } from './approvals'
@@ -151,6 +151,14 @@ function registerRuntimeIpc() {
         tags: ['imported'], importSettings: { source: 'desktop-file-picker' }
       }
     }
+  })
+  handle('paw:assets:discard-import', async (_event, raw: unknown) => {
+    if (!isDisposableImportedGlbUri(raw)) throw new Error('Only a newly imported GLB asset can be discarded.')
+    const target = safeAssetPath(raw, true)
+    try { await unlink(target) } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+    return { discarded: true as const }
   })
   handle('paw:assets:resolve', async (_event, raw: unknown) => {
     if (typeof raw !== 'string') throw new Error('Asset URI must be text.')

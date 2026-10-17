@@ -87,7 +87,16 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         let catalog:AssetCatalogSnapshot={schemaVersion:1,revision:0,assets:[]}
         if(currentRaw){const parsed:unknown=JSON.parse(currentRaw);const result=validateAssetCatalog(parsed);if(!result.valid)throw new Error('Saved asset catalog is invalid: '+result.issues.join('; '));catalog=parsed as AssetCatalogSnapshot}
         catalog=upsertAssetCatalog(catalog,picked.asset)
-        const imported=await importWorkspaceAsset(picked.asset,uri=>window.paw.resolveWorkspaceAsset(uri),createBabylonAssetLoader(scene))
+        let imported: Awaited<ReturnType<typeof importWorkspaceAsset>>
+        try {
+          imported = await importWorkspaceAsset(picked.asset,uri=>window.paw.resolveWorkspaceAsset(uri),createBabylonAssetLoader(scene))
+        } catch (error) {
+          try { await window.paw.discardImportedGlbAsset(picked.asset.uri) }
+          catch (cleanupError) {
+            throw new Error('Model import failed and its copied asset could not be cleaned up: ' + (cleanupError instanceof Error ? cleanupError.message : 'Unknown cleanup error'))
+          }
+          throw error
+        }
         if(sceneDisposed){imported.dispose();throw new Error('Scene closed before import completed.')}
         const id='asset-entity:'+picked.asset.id
         const worldTarget=renderToWorld({x:camera.target.x,y:0,z:camera.target.z},worldOriginCoordinator.origin)
@@ -109,6 +118,10 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
           const disposerIndex = importedEntityDisposers.lastIndexOf(imported.dispose)
           if (disposerIndex >= 0) importedEntityDisposers.splice(disposerIndex, 1)
           imported.dispose()
+          try { await window.paw.discardImportedGlbAsset(picked.asset.uri) }
+          catch (cleanupError) {
+            throw new Error('Asset import persistence failed and the copied model could not be removed: ' + (cleanupError instanceof Error ? cleanupError.message : 'Unknown cleanup error'))
+          }
           throw new Error('Asset import was rolled back because persistent storage failed: ' + (error instanceof Error ? error.message : 'Unknown storage error'))
         }
         return 'Imported '+picked.asset.uri.split('/').pop()+' and saved it to the scene.'

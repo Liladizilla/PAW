@@ -10,3 +10,8 @@ export function isSafeWorkspaceAssetUri(uri: unknown, modelOnly = false): uri is
   if (modelOnly && !SAFE_MODEL_PATH.test(uri)) return false
   return true
 }
+
+/** Only UUID-named GLBs created by the desktop import picker may be discarded. */
+export function isDisposableImportedGlbUri(uri: unknown): uri is string {
+  return typeof uri === 'string' && /^assets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.glb$/i.test(uri) && isSafeWorkspaceAssetUri(uri, true)
+}

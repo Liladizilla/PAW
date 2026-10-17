@@ -29,3 +29,16 @@ test('rejects oversized workspace asset URIs before filesystem resolution', () =
 test('rejects path segments that exceed common filesystem component limits', () => {
   assert.equal(isSafeWorkspaceAssetUri('assets/' + 'a'.repeat(256) + '.glb', true), false)
 })
+
+
+test('only newly imported UUID GLB paths may be discarded', async () => {
+  const { isDisposableImportedGlbUri } = await import('./asset-path-security')
+  assert.equal(isDisposableImportedGlbUri('assets/123e4567-e89b-12d3-a456-426614174000.glb'), true)
+  for (const uri of [
+    'assets/model.glb',
+    'assets/../123e4567-e89b-12d3-a456-426614174000.glb',
+    'assets/123e4567-e89b-12d3-a456-426614174000.gltf',
+    '../123e4567-e89b-12d3-a456-426614174000.glb',
+    null
+  ]) assert.equal(isDisposableImportedGlbUri(uri), false, String(uri))
+})
