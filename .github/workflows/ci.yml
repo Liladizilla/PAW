@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [main, architecture/system-blueprint]
   pull_request:
     branches: [main, architecture/system-blueprint]
   workflow_dispatch:
@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   validate:
-    name: Typecheck, tests and build
+    name: Typecheck, tests, build and desktop smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +31,8 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+      - name: Launch Electron and wait for renderer readiness
+        run: npm run test:desktop-smoke
       - uses: actions/upload-artifact@v4
         if: success()
         with:

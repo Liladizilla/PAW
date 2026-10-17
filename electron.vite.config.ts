@@ -4,6 +4,6 @@ import { resolve } from 'node:path'
 
 export default defineConfig({
   main: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: { index: resolve('electron/main.ts') } } } },
-  preload: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: { index: resolve('electron/preload.ts') } } } },
-  renderer: { root: resolve('.'), resolve: { alias: { '@': resolve('src') } }, plugins: [react()], build: { rollupOptions: { input: { index: resolve('index.html') } } } }
+  preload: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: { index: resolve('electron/preload.ts') }, output: { format: 'cjs', entryFileNames: '[name].cjs' } } } },
+  renderer: { root: resolve('.'), resolve: { alias: { '@': resolve('src') } }, plugins: [react()], build: { rollupOptions: { input: { index: resolve('index.html'), smoke: resolve('smoke.html') } } } }
 })

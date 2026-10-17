@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": false,
   "description": "P.A.W. — Personal Agent Workspace",
-  "author": "Liladizilla",
+  "author": {
+    "name": "Charis Chara Ndirangu",
+    "email": "characharis01@gmail.com"
+  },
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
@@ -14,14 +17,17 @@
     "package:linux": "electron-vite build && electron-builder --linux AppImage deb",
     "package:windows": "electron-vite build && electron-builder --win nsis",
     "package:mac": "electron-vite build && electron-builder --mac dmg zip",
-    "test": "tsx --test src/runtime/*.test.ts",
-    "test:watch": "tsx --test --watch src/runtime/*.test.ts"
+    "test": "tsx --test electron/*.test.ts src/runtime/*.test.ts src/world/*.test.ts && node --test scripts/*.test.mjs",
+    "test:watch": "tsx --test --watch electron/*.test.ts src/runtime/*.test.ts src/world/*.test.ts",
+    "test:desktop-smoke": "node scripts/desktop-smoke.mjs",
+    "verify:checksums": "node scripts/verify-checksums.mjs release"
   },
   "dependencies": {
     "@babylonjs/core": "^8.20.0",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "@babylonjs/loaders": "8.56.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -51,7 +57,9 @@
         "AppImage",
         "deb"
       ],
-      "category": "Development"
+      "category": "Development",
+      "maintainer": "Charis Chara <characharis01@gmail.com>",
+      "syncDesktopName": true
     },
     "win": {
       "target": [
@@ -63,6 +71,9 @@
         "dmg",
         "zip"
       ]
-    }
-  }
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+  },
+  "main": "out/main/index.js",
+  "desktopName": "dev.paw.workspace"
 }

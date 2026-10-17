@@ -18,6 +18,7 @@ Acceptance: reviewers can identify each module's authority, API boundary, data o
 - [x] Commit package-lock.json and verify clean `npm ci` in CI; keep dependency updates reviewable rather than allowing CI to rewrite branches.
 - [ ] Verify typecheck, renderer build and desktop build from a clean checkout.
 - [x] Add a TypeScript unit-test runner, dependency audit and secret scanning.
+- [x] Include Electron asset-path security regression tests in the standard unit-test command.
 - [ ] Add lint/format and require a clean lockfile-backed CI run.
 - [ ] Validate Electron security settings, preload allowlist and restrictive CSP.
 - [x] Add CI artifact retention and useful failure reports.
@@ -51,16 +52,67 @@ Acceptance: deterministic graph runs survive restart; approvals persist; replay 
 
 Acceptance: real model response works without exposing secrets to renderer; denied tools cannot execute; budget exhaustion is enforced.
 
-## M4 — Spatial workspace integration
+## M4 — Spatial workspace and living city
 
+- [x] Establish a real-world 3D city core: asphalt streets, raised pavements, crosswalks, street lighting and distinct multi-storey landmarks.
+- [x] Add deterministic procedural city parcels with varied heights, footprints, facade colors, stepped towers, slabs, cylindrical buildings and courtyard forms.
+- [x] Extend the ground plane and road/sidewalk grid far beyond the opening camera view so the viewport does not reveal a tiny finite island.
+- [x] Add bounded grid A* navigation with tests for obstacle avoidance and blocked destinations.
+- [x] Add a versioned in-memory world entity/component model, snapshot validation and monotonic scene-domain events; keep it separate from durable agent-runtime events.
+- [x] Add a visible underground metro arrival hub with stairs, retaining walls, platform and track bed.
+- [x] Represent the current named agents as selectable human-shaped 3D figures; keep them visually distinct from workflow graph nodes.
+- [x] Add district labels and a camera framing suitable for exploring the initial city block.
+- [ ] Drive agent movement, arrivals, station work and returns from actual runtime/provider events only; never imply successful work with decorative animation.
+- [x] Add a procedural ambient pedestrian crowd using Babylon thin instances (1,008 simulated civilians, explicitly distinct from AI agents).
+- [x] Add a timed two-axis traffic controller with physical signal heads, pedestrian scramble phases and vehicles that obey red lights.
+- [x] Add local spatial-hash pedestrian separation and vehicle following gaps to reduce overlaps and traffic pileups.
+- [x] Give ambient pedestrians explicit crosswalk, sidewalk destination and return waypoints instead of endless walking into a fixed boundary.
+- [x] Run crowd and traffic simulation on a bounded fixed-step clock independent of render-frame timing.
+- [ ] Upgrade soft crowd separation to tested rigid-body/capsule collision and robust navmesh pathfinding; current movement is kinematic, not a full physics engine.
+- [ ] Connect the four named AI agents to real runtime events and route them to capability stations; ambient pedestrians must never be presented as executing agents.
+- [x] Add instanced ambient crowds and reuse instance buffers each frame.
+- [x] Add hardware-aware initial crowd population and FPS-driven thin-instance population tiers with hysteresis.
+- [ ] Profile 1,000+ pedestrian rendering on reference integrated graphics and validate frame-time, memory and visual quality budgets. Provisional executable guardrails exist, but device measurements are still required.
+- [ ] Grow the city modularly by streaming deterministic districts/chunks as the product and real workload needs expand; preserve navigation and performance budgets.
 - [ ] Replace sample data with runtime snapshots/events.
 - [ ] Add graph editing, typed ports, connections, selection and multi-select.
+- [ ] Bind city stations to registered capabilities and live agent assignments.
 - [ ] Add live inspector for status, progress, I/O, dependencies and redacted logs.
 - [ ] Implement durable approval UI, pause/cancel and intervention controls.
 - [ ] Add accessible list/tree alternative, keyboard navigation and reduced motion.
 - [ ] Add adaptive physics/render quality for integrated graphics.
 
 Acceptance: UI state is a projection of the runtime; rendering/physics failure cannot change execution semantics.
+
+## Engine architecture gate
+
+- [x] Document engine layer ownership, world/entity model, large-world strategy, navigation contracts, persistence boundaries and engine references.
+- [x] Extract Babylon renderer, scene and camera lifecycle into a separately owned engine host module.
+- [x] Add deterministic chunk coordinate/ring planning, tested deterministic city layouts with continuous road seams, a reusable uniform-grid spatial index and tests.
+- [x] Connect chunk planning to deterministic Babylon mesh generation/disposal for outer-city roads, sidewalks and buildings; integrate the shared world-origin root with the live scene.
+- [x] Add versioned asset catalog metadata and workspace-relative path validation with tests.
+- [x] Persist and validate versioned camera/world-view snapshots locally.
+- [x] Add validated GLTF/GLB import boundary with driver injection, path checks and disposal tests.
+- [x] Register the Babylon GLTF/GLB loader and a privileged, workspace-confined asset resolver.
+- [x] Add a native desktop GLB file picker, copy imported files into the app-owned asset store, load them into the live scene and immediately persist the catalog/entity record; GLTF sidecar import and asset-browser management remain open.
+- [x] Rehydrate saved asset-backed scene entities from the validated local catalog and persist their entity records; asset-browser import UI, editable component authoring, undo/redo and full scene serialization remain open.
+- [x] Parent rehydrated imported assets under the shared world root so saved world-space transforms project correctly after a nonzero-origin restore.
+- [x] Isolate snapshot storage/migration and asset rehydration planning/transform application into tested contracts, including restart-shaped storage tests, missing asset references and visibility restoration.
+- [x] Surface missing asset catalogs, invalid catalogs and unavailable desktop asset resolvers; validate availability IPC results, attempt real loads when the optional probe fails, and cover restore diagnostics with unit tests.
+- [x] Report the number of models actually rehydrated and surface per-asset loader failures; cover bounded restore summaries with unit tests.
+- [x] Add Babylon NullEngine tests for chunk loading, movement-based eviction, idempotent updates and resource disposal.
+- [x] Add tested world/render coordinate conversions, chunk-snapped origin selection, and a transactional participant coordinator with rollback tests.
+- [x] Add tested transactional adapters for ordinary render positions, camera focus, thin-instance matrix translations with renderer notifications, scalar X/Z coordinates, and coupled traffic coordinates plus vehicle meshes.
+- [x] Make streamed chunk roots origin-aware while deriving chunk IDs from world-space focus; add pedestrian position/route world-render conversion helpers.
+- [x] Extend coordinator fault tests for prepare failures and reverse-order rollback.
+- [x] Register the live world root and camera target with one coordinator; keep streamed chunks, crowd/traffic visuals and imported assets under the root while simulation/entity data remain world-space.
+- [x] Persist world-space camera focus and the active origin in scene snapshot v3.
+- [x] Add automated multi-boundary positive/negative travel, nonzero-origin snapshot round-trip for imported entities, and injected live-scene failure rollback tests.
+- [ ] Verify a desktop-driven save/close/relaunch round trip against the actual live Electron/Babylon scene, including restored imported-asset files and transforms; record a reproducible manual test result.
+- [x] Add a reusable bounded fixed-step clock with catch-up limits and tests.
+- [x] Move the live crowd/traffic loop to the shared fixed-step clock; crowd neighbor queries use the spatial index.
+
+Acceptance: rendering, world simulation, agent runtime and persistence have separate owners and tested contracts.
 
 ## M5 — Teams, memory and automation
 
@@ -94,3 +146,27 @@ Acceptance: all release gates in docs/PIPELINES.md and docs/TEST_STRATEGY.md are
 ## Current reality
 
 The repository now includes a typed graph validator/planner, a bounded-concurrency local DAG executor, typed input/output checks, pause/resume/cancel controls, persisted run lifecycle state, recent event history in the desktop UI, local workspace snapshots, append-only event history, durable approval records, manual recovery, guarded IPC and a Groq provider path with encrypted credential storage. The first registered executor nodes are deterministic local text/JSON transforms. External tools, autonomous model-driven planning, idempotency and remote workers remain unimplemented. The browser preview cannot invoke the privileged desktop runtime bridge. The target architecture remains larger than the current implementation.
+
+
+## M6 — Performance evidence and large-world correctness
+
+- [x] Add bounded live renderer telemetry for measured frame-time percentiles and scene/resource counters.
+- [x] Expose streamed chunk mesh/material counts and test resource cleanup after eviction/disposal.
+- [ ] Profile repeatable cold-start and steady-state workloads on a real integrated-graphics reference device.
+- [x] Add executable frame-time/FPS and scene-resource budget checks, explicitly labelled provisional until hardware profiling.
+- [x] Surface the live measured performance-budget result in the desktop renderer footer.
+- [x] Add a Linux CI Electron launch smoke test that waits for the renderer's real load event before exiting.
+- [x] Extend release validation to run the Electron startup smoke after the production build.
+- [x] Bound the Electron smoke process to 30 seconds and require an explicit renderer-ready marker.
+- [x] Surface missing catalog records and unavailable model files in the workspace status footer.
+- [x] Test SHA-256 checksum ordering, repeatability and rejection of empty release directories.
+- [x] Test that the desktop smoke command fails clearly when no production build exists.
+- [x] Stress streamed chunk load/eviction over 120 long-distance direction changes and assert bounded live resources and zero resource leaks on disposal.
+- [x] Test persisted asset recovery for deleted and unreadable files, including a restart-shaped snapshot/catalog join.
+- [ ] Set and enforce measured frame-time, memory, import-time, and long-session leak budgets.
+- [x] Define and test a transactional origin-rebase participant contract with commit/rollback behavior.
+- [x] Add a generic render-position participant adapter with staged mutation, rollback, finite-coordinate validation and dynamic owner lookup.
+- [x] Add explicit adapters for camera target, thin-instance matrices, traffic simulation coordinates, and origin-aware chunk streaming; pedestrian world/render contract is tested.
+- [x] Integrate root-based origin rebasing across renderer transforms, camera focus, streamed chunks, traffic/crowd visuals, imported assets and world-space snapshot persistence.
+- [x] Verify origin math across repeated positive/negative chunk boundaries, snapshot serialization of nonzero origin and imported-asset world transforms, and exact rollback after injected coordinator failure.
+- [ ] Verify desktop-driven save/close/relaunch against the live Electron/Babylon scene and asset catalog before calling the world effectively unbounded.

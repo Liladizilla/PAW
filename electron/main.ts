@@ -1,5 +1,11 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { join } from 'node:path'
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron'
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { isTrustedRendererUrl } from './renderer-security'
+import { isDisposableImportedGlbUri, isSafeWorkspaceAssetUri } from './asset-path-security'
+import { createImportedAssetLeaseRegistry } from './imported-asset-lease'
+import { randomUUID } from 'node:crypto'
+import { copyFile, mkdir, readFile, realpath, stat, unlink } from 'node:fs/promises'
 import { appendHistoryEvent, loadWorkspace, readHistory, saveWorkspace } from './persistence'
 import { clearGroqApiKey, configureGroqApiKey, groqChat, groqProviderStatus } from './providers/groq'
 import { decideApproval, listApprovals, requestApproval } from './approvals'
@@ -9,7 +15,52 @@ import { validateGraph, type GraphDefinition } from '../src/runtime/graph'
 import { builtinNodeHandlers } from '../src/runtime/builtins'
 import { parseGraphProposal } from '../src/runtime/proposal'
 
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'paw-workspace',
+  privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
+}])
+
 const WORKSPACE_ID = 'default'
+const importedAssetLeases = createImportedAssetLeaseRegistry()
+const ASSET_MIME: Record<string, string> = {
+  '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.bin': 'application/octet-stream',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp'
+}
+function assetRoot(): string { return join(app.getPath('userData'), 'paw', 'assets') }
+function safeAssetPath(uri: string, modelOnly = false): string {
+  if (!isSafeWorkspaceAssetUri(uri, modelOnly)) throw new Error('Asset URI must be a safe, workspace-relative assets/ path.')
+  const root = resolve(assetRoot())
+  const target = resolve(root, uri.slice('assets/'.length))
+  const rel = relative(root, target)
+  if (!rel || rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) throw new Error('Asset path escaped the workspace asset directory.')
+  return target
+}
+async function verifiedAssetPath(uri: string, modelOnly = false): Promise<string> {
+  const target = safeAssetPath(uri, modelOnly)
+  const [rootReal, targetReal] = await Promise.all([realpath(assetRoot()), realpath(target)])
+  const rel = relative(rootReal, targetReal)
+  if (!rel || rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) throw new Error('Asset symlink escaped the workspace asset directory.')
+  return targetReal
+}
+async function registerWorkspaceAssetProtocol() {
+  await mkdir(assetRoot(), { recursive: true })
+  await protocol.handle('paw-workspace', async request => {
+    try {
+      const url = new URL(request.url)
+      if (url.hostname !== 'assets' || (request.method !== 'GET' && request.method !== 'HEAD')) return new Response('Forbidden', { status: 403 })
+      const uri = decodeURIComponent(url.pathname).replace(/^\/+/, '')
+      const target = await verifiedAssetPath(uri)
+      const info = await stat(target)
+      if (!info.isFile() || info.size > 100_000_000) return new Response('Not found', { status: 404 })
+      const body = request.method === 'HEAD' ? null : await readFile(target)
+      return new Response(body, { status: 200, headers: {
+        'Content-Type': ASSET_MIME[extname(target).toLowerCase()] ?? 'application/octet-stream',
+        'Content-Length': String(info.size), 'X-Content-Type-Options': 'nosniff',
+        'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'
+      } })
+    } catch { return new Response('Not found', { status: 404, headers: { 'X-Content-Type-Options': 'nosniff' } }) }
+  })
+}
 const activeExecutions = new Map<string, { control: ExecutionControl; workspaceId: string }>()
 const SAFE_WORKSPACE_ID = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/
 
@@ -52,52 +103,134 @@ async function settleRun(runId: string, workspaceId: string, target: 'succeeded'
 }
 
 function registerRuntimeIpc() {
-  ipcMain.handle('paw:runs:list', (_event, workspaceId: unknown) => listRuns(workspaceId === undefined ? 'default' : String(workspaceId)))
-  ipcMain.handle('paw:runs:create', (_event, input: unknown) => {
+  const handle = (channel: string, listener: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => any) =>
+    ipcMain.handle(channel, (event, ...args) => {
+      const frame = event.senderFrame
+      if (!frame || frame !== event.sender.mainFrame) {
+        throw new Error('P.A.W. IPC is restricted to the trusted top-level renderer.')
+      }
+      const expectedRenderer = process.env.PAW_DESKTOP_SMOKE === '1' ? 'smoke.html' : 'index.html'
+      const expectedFileUrl = pathToFileURL(resolve(__dirname, '../renderer/' + expectedRenderer)).href
+      if (!isTrustedRendererUrl(frame.url, {
+        packaged: app.isPackaged || process.env.PAW_DESKTOP_SMOKE === '1',
+        expectedFileUrl,
+        developmentUrl: process.env.ELECTRON_RENDERER_URL
+      })) {
+        throw new Error('P.A.W. IPC rejected an untrusted renderer URL.')
+      }
+      return listener(event, ...args)
+    })
+  if (process.env.PAW_DESKTOP_SMOKE === '1') {
+    handle('paw:desktop-smoke:ready', () => {
+      process.stdout.write('PAW_DESKTOP_SMOKE_RENDERER_READY\\n')
+      app.quit()
+      return true
+    })
+  }
+  handle('paw:assets:import-glb', async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender)
+    if (!owner || owner.isDestroyed()) throw new Error('Asset import requires the active P.A.W. desktop window.')
+    const selection = await dialog.showOpenDialog(owner, {
+      title: 'Import 3D model into P.A.W.',
+      properties: ['openFile'],
+      filters: [{ name: 'Binary glTF model', extensions: ['glb'] }]
+    })
+    if (selection.canceled || selection.filePaths.length !== 1) return { canceled: true as const }
+    const source = selection.filePaths[0]
+    const sourceInfo = await stat(source)
+    if (!sourceInfo.isFile() || sourceInfo.size < 20 || sourceInfo.size > 100_000_000) {
+      throw new Error('GLB file must be between 20 bytes and 100 MB.')
+    }
+    const id = randomUUID()
+    const uri = 'assets/' + id + '.glb'
+    await mkdir(assetRoot(), { recursive: true })
+    const target = safeAssetPath(uri, true)
+    await copyFile(source, target)
+    importedAssetLeases.register(uri)
+    return {
+      canceled: false as const,
+      asset: {
+        id, kind: 'mesh' as const, uri, format: 'glb',
+        tags: ['imported'], importSettings: { source: 'desktop-file-picker' }
+      }
+    }
+  })
+  handle('paw:assets:discard-import', async (_event, raw: unknown) => {
+    if (!importedAssetLeases.canDiscard(raw)) throw new Error('Only an active, newly imported GLB asset can be discarded.')
+    const target = safeAssetPath(raw, true)
+    try { await unlink(target) } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+    importedAssetLeases.discard(raw)
+    return { discarded: true as const }
+  })
+  handle('paw:assets:commit-import', (_event, raw: unknown) => {
+    if (!importedAssetLeases.canDiscard(raw)) throw new Error('Only an active imported GLB asset can be committed.')
+    importedAssetLeases.commit(raw)
+    return { committed: true as const }
+  })
+  handle('paw:assets:resolve', async (_event, raw: unknown) => {
+    if (typeof raw !== 'string') throw new Error('Asset URI must be text.')
+    const target = await verifiedAssetPath(raw, true)
+    const info = await stat(target)
+    if (!info.isFile() || info.size > 100_000_000) throw new Error('Asset is missing or exceeds the 100 MB import limit.')
+    return { rootUrl: 'paw-workspace://assets/', fileName: raw }
+  })
+  handle('paw:assets:inspect', async (_event, raw: unknown) => {
+    if (!Array.isArray(raw) || raw.length > 500 || raw.some(uri => typeof uri !== 'string')) {
+      throw new Error('Asset inspection accepts at most 500 URI strings.')
+    }
+    return Promise.all((raw as string[]).map(async uri => {
+      try {
+        const target = await verifiedAssetPath(uri, true)
+        const info = await stat(target)
+        if (!info.isFile() || info.size > 100_000_000) return { uri, available: false as const, reason: 'unreadable' as const }
+        return { uri, available: true as const }
+      } catch {
+        const safe = (() => { try { safeAssetPath(uri, true); return true } catch { return false } })()
+        return { uri, available: false as const, reason: safe ? 'missing' as const : 'invalid' as const }
+      }
+    }))
+  })
+
+  handle('paw:runs:list', (_event, workspaceId: unknown) => listRuns(workspaceId === undefined ? 'default' : String(workspaceId)))
+  handle('paw:runs:create', (_event, input: unknown) => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Run input must be an object.')
     const value = input as { graphId?: unknown; workspaceId?: unknown }
     if (typeof value.graphId !== 'string' || (value.workspaceId !== undefined && typeof value.workspaceId !== 'string')) throw new Error('Invalid run input.')
     return createRun({ graphId: value.graphId, workspaceId: value.workspaceId as string | undefined })
   })
-  ipcMain.handle('paw:runs:transition', (_event, input: unknown) => {
-    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Run transition must be an object.')
-    const value = input as { id?: unknown; status?: unknown; reason?: unknown }
-    const statuses = ['queued','running','pause_requested','paused','cancel_requested','cancelled','succeeded','failed','needs_recovery']
-    if (typeof value.id !== 'string' || typeof value.status !== 'string' || !statuses.includes(value.status) ||
-        (value.reason !== undefined && typeof value.reason !== 'string')) throw new Error('Invalid run transition.')
-    return transitionRun(value.id, value.status as import('../src/runtime/run-state').RunStatus, value.reason as string | undefined)
-  })
-  ipcMain.handle('paw:runs:recover', (_event, input: unknown) => {
+  handle('paw:runs:recover', (_event, input: unknown) => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Run recovery must be an object.')
     const value = input as { id?: unknown; resolution?: unknown; note?: unknown }
     if (typeof value.id !== 'string' || (value.resolution !== 'retry' && value.resolution !== 'abandon') ||
         (value.note !== undefined && typeof value.note !== 'string')) throw new Error('Invalid run recovery.')
     return resolveRunRecovery(value.id, value.resolution, value.note as string | undefined)
   })
-  ipcMain.handle('paw:approvals:list', (_event, status: unknown) => {
+  handle('paw:approvals:list', (_event, status: unknown) => {
     if (status !== undefined && status !== 'pending' && status !== 'approved' && status !== 'denied') throw new Error('Invalid approval status filter.')
     return listApprovals(status as 'pending' | 'approved' | 'denied' | undefined)
   })
-  ipcMain.handle('paw:approvals:request', (_event, input: unknown) => {
+  handle('paw:approvals:request', (_event, input: unknown) => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Approval request must be an object.')
     const value = input as { action?: unknown; summary?: unknown; requestedBy?: unknown }
     if (typeof value.action !== 'string' || typeof value.summary !== 'string' ||
         (value.requestedBy !== undefined && typeof value.requestedBy !== 'string')) throw new Error('Invalid approval request.')
     return requestApproval({ action: value.action, summary: value.summary, requestedBy: value.requestedBy as string | undefined })
   })
-  ipcMain.handle('paw:approvals:decide', (_event, input: unknown) => {
+  handle('paw:approvals:decide', (_event, input: unknown) => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Approval decision must be an object.')
     const value = input as { id?: unknown; decision?: unknown; note?: unknown }
     if (typeof value.id !== 'string' || (value.decision !== 'approved' && value.decision !== 'denied') ||
         (value.note !== undefined && typeof value.note !== 'string')) throw new Error('Invalid approval decision.')
     return decideApproval(value.id, value.decision, value.note as string | undefined)
   })
-  ipcMain.handle('paw:graph:validate', (_event, raw: unknown) => {
+  handle('paw:graph:validate', (_event, raw: unknown) => {
     const graph = readGraphPayload(raw)
     const issues = validateGraph(graph)
     return { valid: issues.length === 0, issues }
   })
-  ipcMain.handle('paw:graph:execute', async (_event, input: unknown) => {
+  handle('paw:graph:execute', async (_event, input: unknown) => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Execution input must be an object.')
     const value = input as { graph?: unknown; workspaceId?: unknown; concurrency?: unknown }
     if (value.workspaceId !== undefined && (typeof value.workspaceId !== 'string' || !SAFE_WORKSPACE_ID.test(value.workspaceId))) throw new Error('Invalid workspace id.')
@@ -141,34 +274,34 @@ function registerRuntimeIpc() {
     }).finally(() => activeExecutions.delete(run.id))
     return { ...run, status: 'running' as const }
   })
-  ipcMain.handle('paw:graph:pause', (_event, id: unknown) => {
+  handle('paw:graph:pause', (_event, id: unknown) => {
     if (typeof id !== 'string') throw new Error('Run id is required.')
     const active = activeExecutions.get(id)
     if (!active) throw new Error('Run is not active.')
     active.control.pause()
     return { requested: true, id }
   })
-  ipcMain.handle('paw:graph:resume', (_event, id: unknown) => {
+  handle('paw:graph:resume', (_event, id: unknown) => {
     if (typeof id !== 'string') throw new Error('Run id is required.')
     const active = activeExecutions.get(id)
     if (!active) throw new Error('Run is not active.')
     active.control.resume()
     return { requested: true, id }
   })
-  ipcMain.handle('paw:graph:cancel', (_event, id: unknown) => {
+  handle('paw:graph:cancel', (_event, id: unknown) => {
     if (typeof id !== 'string') throw new Error('Run id is required.')
     const active = activeExecutions.get(id)
     if (!active) throw new Error('Run is not active.')
     active.control.cancel('Cancelled by user.')
     return { requested: true, id }
   })
-  ipcMain.handle('paw:provider:status', () => groqProviderStatus())
-  ipcMain.handle('paw:provider:configure-groq', (_event, key: unknown) => {
+  handle('paw:provider:status', () => groqProviderStatus())
+  handle('paw:provider:configure-groq', (_event, key: unknown) => {
     if (typeof key !== 'string') throw new Error('API key must be text.')
     return configureGroqApiKey(key)
   })
-  ipcMain.handle('paw:provider:clear-groq', () => clearGroqApiKey())
-  ipcMain.handle('paw:provider:chat', (_event, input: unknown) => {
+  handle('paw:provider:clear-groq', () => clearGroqApiKey())
+  handle('paw:provider:chat', (_event, input: unknown) => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Chat input must be an object.')
     const value = input as { prompt?: unknown; system?: unknown; model?: unknown }
     if (typeof value.prompt !== 'string' ||
@@ -176,7 +309,7 @@ function registerRuntimeIpc() {
         (value.model !== undefined && typeof value.model !== 'string')) throw new Error('Invalid chat input.')
     return groqChat({ prompt: value.prompt, system: value.system as string | undefined, model: value.model as string | undefined })
   })
-  ipcMain.handle('paw:provider:propose-graph', async (_event, input: unknown) => {
+  handle('paw:provider:propose-graph', async (_event, input: unknown) => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Graph proposal input must be an object.')
     const value = input as { prompt?: unknown; model?: unknown }
     if (typeof value.prompt !== 'string' || !value.prompt.trim() || value.prompt.length > 12_000 ||
@@ -190,19 +323,19 @@ function registerRuntimeIpc() {
     return { ...proposal, model: response.model }
   })
 
-  ipcMain.handle('paw:runtime-status', async () => ({
+  handle('paw:runtime-status', async () => ({
     connected: true,
     mode: 'local-guarded-executor',
     executionEnabled: true,
     providerConfigured: (await groqProviderStatus()).configured,
     workspaceId: WORKSPACE_ID
   }))
-  ipcMain.handle('paw:workspace:load', () => loadWorkspace(WORKSPACE_ID))
-  ipcMain.handle('paw:workspace:save', (_event, data: unknown) => {
+  handle('paw:workspace:load', () => loadWorkspace(WORKSPACE_ID))
+  handle('paw:workspace:save', (_event, data: unknown) => {
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Workspace data must be a JSON object.')
     return saveWorkspace(WORKSPACE_ID, data as Record<string, unknown>)
   })
-  ipcMain.handle('paw:history:append', (_event, input: unknown) => {
+  handle('paw:history:append', (_event, input: unknown) => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('History event must be an object.')
     const event = input as { type?: unknown; payload?: unknown }
     if (typeof event.type !== 'string') throw new Error('History event type is required.')
@@ -211,7 +344,7 @@ function registerRuntimeIpc() {
     }
     return appendHistoryEvent(WORKSPACE_ID, { type: event.type, payload: event.payload as Record<string, unknown> | undefined })
   })
-  ipcMain.handle('paw:history:list', (_event, limit: unknown) => readHistory(WORKSPACE_ID, limit === undefined ? 200 : Number(limit)))
+  handle('paw:history:list', (_event, limit: unknown) => readHistory(WORKSPACE_ID, limit === undefined ? 200 : Number(limit)))
 }
 
 function createWindow() {
@@ -219,18 +352,26 @@ function createWindow() {
     width: 1600, height: 1000, minWidth: 1080, minHeight: 700,
     backgroundColor: '#090b0f', title: 'P.A.W. — Personal Agent Workspace',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true, nodeIntegration: false, sandbox: true
     }
   })
+  if (process.env.PAW_DESKTOP_SMOKE === '1') {
+    window.webContents.once('did-fail-load', (_event, errorCode, description) => {
+      process.stderr.write('PAW_DESKTOP_SMOKE_RENDERER_FAILED ' + errorCode + ' ' + description + '\\n')
+      app.exit(1)
+    })
+  }
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) void shell.openExternal(url)
     return { action: 'deny' }
   })
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) void window.loadURL(process.env.ELECTRON_RENDERER_URL)
+  if (process.env.PAW_DESKTOP_SMOKE === '1') void window.loadFile(join(__dirname, '../renderer/smoke.html'))
+  else if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) void window.loadURL(process.env.ELECTRON_RENDERER_URL)
   else void window.loadFile(join(__dirname, '../renderer/index.html'))
 }
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await registerWorkspaceAssetProtocol()
   registerRuntimeIpc()
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })

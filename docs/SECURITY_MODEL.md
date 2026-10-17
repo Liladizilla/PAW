@@ -19,7 +19,7 @@ Threats: malicious plugins/MCP servers; prompt injection in web pages, repositor
 
 ## IPC and local service
 
-Electron context isolation, sandbox and disabled Node integration are mandatory. Preload exposes typed allowlisted commands, never generic IPC, shell or filesystem access. Validate schemas, payload size, window ownership and rate limits. Bind local runtime to loopback only and authenticate local RPC with a random per-launch token or equivalent. Reject non-loopback requests and protect against cross-origin requests, DNS rebinding and unauthorized local processes. Apply restrictive Content Security Policy.
+Electron context isolation, sandbox and disabled Node integration are mandatory. Preload exposes typed allowlisted commands, never generic IPC, shell or filesystem access. Every IPC invocation must originate from the trusted top-level renderer entry point; packaged builds compare the exact local HTML URL and development builds compare the configured renderer origin/path. Validate schemas, payload size, window ownership and rate limits. Bind local runtime to loopback only and authenticate local RPC with a random per-launch token or equivalent. Reject non-loopback requests and protect against cross-origin requests, DNS rebinding and unauthorized local processes. Apply restrictive Content Security Policy.
 
 ## Tool capabilities
 
@@ -48,7 +48,7 @@ Lock dependencies, review audit output, scan secrets, run static analysis and pr
 
 - Renderer cannot read process environment, filesystem or provider secrets.
 - Unauthorized IPC and malformed payloads are rejected.
-- Traversal and symlink escape fail closed.
+- Workspace asset URI validation is a pure, unit-tested boundary (`electron/asset-path-security.ts`); traversal, absolute paths, encoded traversal, backslashes and invalid model extensions are rejected before filesystem resolution. Canonical `realpath` containment still rejects symlink escapes.
 - Plugin cannot call ungranted capabilities or elevate grants.
 - Prompt-injected content cannot change policy or bypass approval.
 - Secrets are absent from logs, crash reports, preview bundles and exports.
