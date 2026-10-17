@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, RotateCcw, Search, Send, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
-import { ArcRotateCamera, Color3, Curve3, Engine, HemisphericLight, MeshBuilder, PBRMaterial, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
+import { ArcRotateCamera, Color3, Curve3, DirectionalLight, Engine, HemisphericLight, MeshBuilder, PBRMaterial, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
 import { demoGraph } from './runtime/demo-graph'
 
 type Agent = { id:string; name:string; role:string; color:string; x:number; z:number; state:string; task:string }
@@ -20,37 +20,118 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     if(!canvas.current)return
     const engine=new Engine(canvas.current,true,{adaptToDeviceRatio:true,stencil:true})
     const scene=new Scene(engine);scene.clearColor.set(.035,.043,.055,1)
-    const camera=new ArcRotateCamera('camera',-Math.PI/2.2,1.12,18,Vector3.Zero(),scene)
+    const camera=new ArcRotateCamera('camera',-Math.PI/2.2,1.04,42,Vector3.Zero(),scene)
     cameraControl.current={
-      focus:(id:string)=>{const agent=agents.find(item=>item.id===id);if(!agent)return;camera.target=new Vector3(agent.x,.8,agent.z);camera.radius=10},
-      reset:()=>{camera.target=Vector3.Zero();camera.alpha=-Math.PI/2.2;camera.beta=1.12;camera.radius=18}
+      focus:(id:string)=>{const agent=agents.find(item=>item.id===id);if(!agent)return;camera.target=new Vector3(agent.x,.8,agent.z);camera.radius=13},
+      reset:()=>{camera.target=Vector3.Zero();camera.alpha=-Math.PI/2.2;camera.beta=1.04;camera.radius=42}
     }
-    camera.attachControl(canvas.current,true);camera.lowerRadiusLimit=7;camera.upperRadiusLimit=34;camera.wheelPrecision=52;camera.panningSensibility=85;camera.inertia=.82
-    new HemisphericLight('ambient',new Vector3(.1,1,.1),scene).intensity=.82
-    const floor=MeshBuilder.CreateGround('floor',{width:100,height:100},scene)
-    const fm=new StandardMaterial('floor-mat',scene);fm.diffuseColor=new Color3(.045,.055,.07);floor.material=fm
-    for(let i=-10;i<=10;i++){const a=MeshBuilder.CreateLines('grid-a'+i,{points:[new Vector3(i*2,.015,-20),new Vector3(i*2,.015,20)]},scene);const b=MeshBuilder.CreateLines('grid-b'+i,{points:[new Vector3(-20,.015,i*2),new Vector3(20,.015,i*2)]},scene);a.color=b.color=new Color3(.12,.15,.19)}
-    // A quiet orbital sculpture anchors the workspace without competing with the graph.
-    for(const [index,diameter] of [5.2,6.1,7].entries()){
-      const orbit=MeshBuilder.CreateTorus('core-orbit-'+index,{diameter,thickness:index===0?.055:.025,tessellation:96},scene)
-      orbit.position=new Vector3(0,.16+index*.035,0);orbit.rotation.x=Math.PI/2;orbit.rotation.z=index*.16
-      const orbitMat=new StandardMaterial('core-orbit-mat-'+index,scene)
-      orbitMat.diffuseColor=new Color3(.22,.28,.32);orbitMat.emissiveColor=new Color3(.055,.075,.085);orbitMat.alpha=index===2?.45:.78
-      orbit.material=orbitMat
+    camera.attachControl(canvas.current,true);camera.lowerRadiusLimit=8;camera.upperRadiusLimit=76;camera.wheelPrecision=52;camera.panningSensibility=85;camera.inertia=.82
+    new HemisphericLight('ambient',new Vector3(.1,1,.1),scene).intensity=.9
+    const sun=new DirectionalLight('city-sun',new Vector3(-.45,-1,.35),scene);sun.position=new Vector3(-18,32,-16);sun.intensity=.72
+    const material=(name:string,color:string,emissive?:string)=>{
+      const mat=new StandardMaterial(name,scene);mat.diffuseColor=Color3.FromHexString(color);if(emissive)mat.emissiveColor=Color3.FromHexString(emissive);return mat
     }
+    const ground=MeshBuilder.CreateGround('city-ground',{width:72,height:72},scene)
+    ground.material=material('city-ground-mat','#343631')
+    const asphalt=material('street-asphalt','#222522')
+    const curb=material('street-curb','#77766d')
+    const pavement=material('pavement','#55554e')
+    const lanePaint=material('lane-paint','#c4b58f')
+    const glass=material('building-glass','#65716e','#202d2b')
+    const warmGlass=material('warm-window-light','#9b8159','#463720')
+    const concrete=material('station-concrete','#55534b')
+    const dark=material('station-dark','#171a19')
+    const road=(name:string,x:number,z:number,width:number,depth:number)=>{
+      const mesh=MeshBuilder.CreateBox(name,{width,height:.09,depth},scene);mesh.position.set(x,.045,z);mesh.material=asphalt
+    }
+    const sidewalk=(name:string,x:number,z:number,width:number,depth:number)=>{
+      const mesh=MeshBuilder.CreateBox(name,{width,height:.16,depth},scene);mesh.position.set(x,.08,z);mesh.material=pavement
+    }
+    // A legible street grid: asphalt, raised pavements, curbs and dashed lane markings.
+    road('north-south-avenue',0,0,5.2,68);road('east-west-avenue',0,0,68,5.2)
+    sidewalk('west-walk',-3.35,0,1.25,68);sidewalk('east-walk',3.35,0,1.25,68)
+    sidewalk('north-walk',0,-3.35,68,1.25);sidewalk('south-walk',0,3.35,68,1.25)
+    for(let p=-30;p<=30;p+=4){
+      if(Math.abs(p)>5){
+        const v=MeshBuilder.CreateBox('north-lane-'+p,{width:.12,height:.018,depth:1.8},scene);v.position.set(0,.101,p);v.material=lanePaint
+        const h=MeshBuilder.CreateBox('east-lane-'+p,{width:1.8,height:.018,depth:.12},scene);h.position.set(p,.101,0);h.material=lanePaint
+      }
+    }
+    // Crosswalks at the central intersection.
+    for(let i=0;i<7;i++){
+      const stripeA=MeshBuilder.CreateBox('crosswalk-n-'+i,{width:.34,height:.025,depth:1.5},scene);stripeA.position.set(-2.1+i*.7,.112,-3.9);stripeA.material=lanePaint
+      const stripeB=MeshBuilder.CreateBox('crosswalk-s-'+i,{width:.34,height:.025,depth:1.5},scene);stripeB.position.set(-2.1+i*.7,.112,3.9);stripeB.material=lanePaint
+      const stripeC=MeshBuilder.CreateBox('crosswalk-e-'+i,{width:1.5,height:.025,depth:.34},scene);stripeC.position.set(3.9,.112,-2.1+i*.7);stripeC.material=lanePaint
+      const stripeD=MeshBuilder.CreateBox('crosswalk-w-'+i,{width:1.5,height:.025,depth:.34},scene);stripeD.position.set(-3.9,.112,-2.1+i*.7);stripeD.material=lanePaint
+    }
+    const makeBuilding=(id:string,x:number,z:number,width:number,depth:number,height:number,facade:string,floors:number)=>{
+      const shell=MeshBuilder.CreateBox(id+'-structure',{width,height,depth},scene);shell.position.set(x,height/2+.16,z);shell.material=material(id+'-facade',facade)
+      const roof=MeshBuilder.CreateBox(id+'-roof',{width:width+.18,height:.22,depth:depth+.18},scene);roof.position.set(x,height+.27,z);roof.material=material(id+'-roof-mat','#45453f')
+      const windowRows=Math.max(2,floors)
+      const cols=Math.max(2,Math.floor(width/1.35))
+      for(let row=0;row<windowRows;row++){
+        const y=.85+row*(height-.9)/windowRows
+        for(let col=0;col<cols;col++){
+          const wx=x-width/2+.7+col*(width-1.1)/Math.max(1,cols-1)
+          const front=MeshBuilder.CreateBox(id+'-front-window-'+row+'-'+col,{width:.48,height:.48,depth:.055},scene)
+          front.position.set(wx,y,z-depth/2-.035);front.material=((row+col)%4===0)?warmGlass:glass
+          const side=MeshBuilder.CreateBox(id+'-side-window-'+row+'-'+col,{width:.055,height:.48,depth:.48},scene)
+          side.position.set(x+width/2+.035,y,z-depth/2+.65+col*(depth-1.3)/Math.max(1,cols-1));side.material=((row+col)%5===0)?warmGlass:glass
+        }
+      }
+      const door=MeshBuilder.CreateBox(id+'-entrance',{width:1.05,height:1.65,depth:.09},scene);door.position.set(x,.98,z-depth/2-.09);door.material=material(id+'-door','#252b29')
+      const canopy=MeshBuilder.CreateBox(id+'-canopy',{width:width*.62,height:.12,depth:.85},scene);canopy.position.set(x,2,z-depth/2-.35);canopy.material=material(id+'-canopy-mat','#8b7959')
+    }
+    // Real architectural massing gives every district a physical address in the city.
+    makeBuilding('research-hall',-14,-14,8.2,8.5,10,'#69675e',6)
+    makeBuilding('engineering-works',14,-14,8.5,8.5,13,'#565b58',8)
+    makeBuilding('review-house',14,14,8.5,8.2,8,'#777166',5)
+    makeBuilding('archive-library',-14,14,8.2,8.5,7,'#625f56',4)
+    makeBuilding('operations-tower',-26,-14,6.8,8.5,17,'#494f4c',10)
+    makeBuilding('data-centre',26,-14,7.2,8.5,11,'#4a514f',6)
+    makeBuilding('workshop-annex',26,14,7.2,8.2,6,'#70695c',3)
+    makeBuilding('planning-office',-26,14,6.8,8.2,9,'#5d625d',5)
+    // Small street furniture makes the scale read as infrastructure, not a graph grid.
+    for(const side of [-1,1]){
+      for(let p=-25;p<=25;p+=10){
+        const pole=MeshBuilder.CreateCylinder('streetlamp-pole-'+side+'-'+p,{height:2.7,diameter:.09,tessellation:8},scene);pole.position.set(side*4.25,1.35,p);pole.material=material('streetlamp-metal-'+side+'-'+p,'#4c4b43')
+        const lamp=MeshBuilder.CreateSphere('streetlamp-head-'+side+'-'+p,{diameter:.28,segments:10},scene);lamp.position.set(side*4.25,2.75,p);lamp.material=material('streetlamp-glow-'+side+'-'+p,'#d2b27a','#6e552d')
+      }
+    }
+    // The central underground metro entrance is a real cutaway-like station, with stairs and a platform below street level.
+    const stationBase=MeshBuilder.CreateBox('metro-platform',{width:5.8,height:.18,depth:7.5},scene);stationBase.position.set(0,-1.65,13.3);stationBase.material=concrete
+    for(const side of [-1,1]){
+      const wall=MeshBuilder.CreateBox('metro-retaining-wall-'+side,{width:.28,height:2.4,depth:7.7},scene);wall.position.set(side*3,-.72,13.3);wall.material=concrete
+    }
+    const backWall=MeshBuilder.CreateBox('metro-back-wall',{width:6.1,height:2.4,depth:.25},scene);backWall.position.set(0,-.72,17);backWall.material=dark
+    const track=MeshBuilder.CreateBox('metro-track-bed',{width:1.2,height:.1,depth:6.6},scene);track.position.set(0,-1.49,13.4);track.material=dark
+    for(const side of [-1,1]){
+      const rail=MeshBuilder.CreateBox('metro-rail-'+side,{width:.07,height:.09,depth:6.4},scene);rail.position.set(side*.35,-1.39,13.4);rail.material=material('metro-rail-metal-'+side,'#aaa18d')
+    }
+    for(let step=0;step<8;step++){
+      const stair=MeshBuilder.CreateBox('metro-stair-'+step,{width:2.4,height:.13,depth:.52},scene)
+      stair.position.set(0,-.04-step*.19,9.9+step*.48);stair.material=material('metro-step-mat-'+step,'#817c70')
+    }
+    const canopy=MeshBuilder.CreateBox('metro-canopy',{width:4.2,height:.22,depth:2.3},scene);canopy.position.set(0,2.5,9.45);canopy.material=material('metro-canopy-mat','#4a4a42')
+    const supports=material('metro-supports','#a08d69')
+    for(const x of [-1.85,1.85]){
+      const post=MeshBuilder.CreateCylinder('metro-canopy-post-'+x,{height:2.5,diameter:.13},scene);post.position.set(x,1.25,9.45);post.material=supports
+    }
+    const sign=MeshBuilder.CreateBox('metro-sign',{width:2.8,height:.52,depth:.08},scene);sign.position.set(0,2.05,8.3);sign.material=material('metro-sign-mat','#242824','#171d18')
+    const stationMark=MeshBuilder.CreateBox('metro-sign-amber',{width:1.7,height:.06,depth:.1},scene);stationMark.position.set(0,2.05,8.23);stationMark.material=material('metro-sign-amber-mat','#d8b57b','#745a30')
     const nodeMaterials=new Map<string,PBRMaterial>()
     for(const agent of agents){
-      const central=agent.id==='orchestrator'
-      const root=MeshBuilder.CreateSphere(agent.id,{diameter:central?2.15:1.8,segments:32},scene)
-      root.scaling=new Vector3(central?1.12:1.08,central?.82:.72,central?.98:.88)
-      root.position=new Vector3(agent.x,central?1.02:.82,agent.z);root.metadata={agentId:agent.id}
-      const mat=new PBRMaterial(agent.id+'-mat',scene);mat.albedoColor=Color3.FromHexString(agent.color);mat.metallic=.28;mat.roughness=.48;root.material=mat;nodeMaterials.set(agent.id,mat)
-      const top=MeshBuilder.CreateSphere(agent.id+'-top',{diameter:central?1.18:.96,segments:24},scene)
-      top.scaling=new Vector3(1,.19,.82);top.position=new Vector3(agent.x,central?1.79:1.48,agent.z)
-      const tm=new StandardMaterial(agent.id+'-tm',scene);tm.diffuseColor=new Color3(.12,.15,.2);tm.emissiveColor=Color3.FromHexString(agent.color).scale(.08);top.material=tm;top.metadata={agentId:agent.id}
-      const core=MeshBuilder.CreateTorus(agent.id+'-core',{diameter:central?.72:.56,thickness:.09,tessellation:40},scene)
-      core.position=new Vector3(agent.x,central?1.96:1.6,agent.z);core.rotation.x=Math.PI/2
-      const cm=new StandardMaterial(agent.id+'-cm',scene);cm.diffuseColor=Color3.FromHexString(agent.color);cm.emissiveColor=Color3.FromHexString(agent.color).scale(.22);core.material=cm;core.metadata={agentId:agent.id}
+      const root=MeshBuilder.CreateCylinder(agent.id,{height:.72,diameterTop:.34,diameterBottom:.46,tessellation:12},scene)
+      root.position.set(agent.x,.83,agent.z);root.material=new PBRMaterial(agent.id+'-body-mat',scene)
+      const bodyMat=root.material as PBRMaterial;bodyMat.albedoColor=Color3.FromHexString(agent.color);bodyMat.metallic=.08;bodyMat.roughness=.72;nodeMaterials.set(agent.id,bodyMat);root.metadata={agentId:agent.id}
+      const head=MeshBuilder.CreateSphere(agent.id+'-head',{diameter:.3,segments:12},scene);head.position.set(agent.x,1.36,agent.z);head.material=material(agent.id+'-head-mat','#bda78c');head.metadata={agentId:agent.id}
+      for(const side of [-1,1]){
+        const arm=MeshBuilder.CreateCylinder(agent.id+'-arm-'+side,{height:.52,diameter:.12,tessellation:8},scene)
+        arm.position.set(agent.x+side*.27,.86,agent.z);arm.rotation.z=side*.13;arm.material=bodyMat;arm.metadata={agentId:agent.id}
+        const leg=MeshBuilder.CreateCylinder(agent.id+'-leg-'+side,{height:.48,diameter:.14,tessellation:8},scene)
+        leg.position.set(agent.x+side*.13,.34,agent.z);leg.material=material(agent.id+'-leg-mat-'+side,'#343632');leg.metadata={agentId:agent.id}
+      }
+      const badge=MeshBuilder.CreateBox(agent.id+'-badge',{width:.18,height:.1,depth:.06},scene);badge.position.set(agent.x,1.03,agent.z-.22);badge.material=material(agent.id+'-badge-mat',agent.color,agent.color);badge.metadata={agentId:agent.id}
     }
     for(const id of ['research','builder','validator']){
       const a=agents[0],b=agents.find(x=>x.id===id)!
@@ -198,7 +279,7 @@ export default function App(){
     <header className="top"><div className="brand"><span className="brandicon"><Boxes size={21}/></span><div><b>P.A.W.</b><small>PERSONAL AGENT WORKSPACE</small></div></div><span className="workspace-tag"><i/> LOCAL WORKSPACE</span><div className="topright"><Settings2 size={16}/><span className="avatar">P</span></div></header>
     <nav className="rail"><Network/><Cpu/><Workflow/><BrainCircuit/><TerminalSquare/><div className="spacer"/><ShieldCheck/></nav>
     <section className="layout"><aside className="left"><div className="eyebrow">WORKSPACE</div><h1>Agent network</h1><label className="search"><Search size={14}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find agents"/></label><div className="eyebrow section">NETWORK OBJECTS <span>{agents.length.toString().padStart(2,'0')}</span></div>{agents.filter(a=>(a.name+a.role).toLowerCase().includes(query.toLowerCase())).map(a=><button key={a.id} className={'agent '+(selected===a.id?'chosen':'')} onClick={()=>select(a.id)}><span className="glyph" style={{color:a.color}}><Cpu size={16}/></span><span><b>{a.name}</b><small>{a.role}</small></span><i className={a.state.toLowerCase()}/></button>)}<div className="runtime"><div className="eyebrow">RUNTIME STATUS</div><b><Activity size={15}/> Local executor available</b><small>Deterministic typed nodes run in the desktop main process. External tools remain unavailable unless registered behind policy.</small><button className="provider-button primary" onClick={runDemo} disabled={runBusy||!!(activeRun&&['queued','running','pause_requested','paused','cancel_requested'].includes(activeRun.status))}>{runBusy?'Starting…':'Run local smoke test'}</button><small>{runMessage}</small><div className="execution-nodes" aria-label="Live demo graph execution status"><div className="eyebrow">DEMO GRAPH NODES</div>{demoGraph.nodes.map(node=>{const status=nodeStatuses.get(node.id)??(activeRun?'waiting':'not run');return <div className="execution-node" key={node.id}><span><b>{node.label??node.id}</b><small>{node.type}</small></span><i className={'node-state '+status.replace(' ','-')}>{status.toUpperCase()}</i></div>})}</div>{activeRun&&<><small>RUN {activeRun.id.slice(0,8)} · {activeRun.status.toUpperCase()}</small>{activeRun&&['running','pause_requested'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('pause')}>Pause</button>}{activeRun&&activeRun.status==='paused'&&<button className="provider-button" onClick={()=>void controlRun('resume')}>Resume</button>}{activeRun&&['running','pause_requested','paused'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('cancel')}>Cancel run</button>}</>}</div></aside>
-    <section className="viewport"><div className="viewhead"><div><div className="eyebrow">SPATIAL WORKSPACE / DEFAULT ZONE</div><h2>Coordination field</h2></div><div className="spatial"><Layers3 size={13}/> SPATIAL <button className="camera-control" onClick={()=>cameraControl.current?.focus(selected)} title="Focus selected agent" aria-label="Focus selected agent"><Maximize2 size={14}/></button><button className="camera-control reset-view" onClick={()=>cameraControl.current?.reset()} title="Reset camera" aria-label="Reset camera"><RotateCcw size={13}/></button></div></div><div className="scene"><World onSelect={select} selected={selected} cameraControl={cameraControl}/><div className="scene-label">DEMO GRAPH / {agents.length} NODES</div><div className="hint">Drag to orbit Â· Scroll to zoom Â· Click a machine to inspect</div></div><footer className="viewfoot"><span>GRAPH <b>{activeRun?.status?.toUpperCase()??'IDLE'}</b></span><span>NODES <b>{demoGraph.nodes.length.toString().padStart(2,'0')}</b></span><span className="spacer"/>RENDERING <b>STANDARD</b> Â· CAMERA <b>FREE</b></footer></section>
+    <section className="viewport"><div className="viewhead"><div><div className="eyebrow">SPATIAL WORKSPACE / CENTRAL DISTRICT</div><h2>Agent City</</h2></div><div className="spatial"><Layers3 size={13}/> SPATIAL <button className="camera-control" onClick={()=>cameraControl.current?.focus(selected)} title="Focus selected agent" aria-label="Focus selected agent"><Maximize2 size={14}/></button><button className="camera-control reset-view" onClick={()=>cameraControl.current?.reset()} title="Reset camera" aria-label="Reset camera"><RotateCcw size={13}/></button></div></div><div className="scene"><World onSelect={select} selected={selected} cameraControl={cameraControl}/><div className="scene-label">CITY SIMULATION / {agents.length} AGENTS</div><div className="hint">Drag to orbit · Scroll to zoom · Select an agent to inspect</div></div><footer className="viewfoot"><span>GRAPH <b>{activeRun?.status?.toUpperCase()??'IDLE'}</b></span><span>NODES <b>{demoGraph.nodes.length.toString().padStart(2,'0')}</b></span><span className="spacer"/>CITY <b>BLOCKOUT</b> · CAMERA <b>FREE</b></footer></section>
     <aside className="inspector"><div className="eyebrow">OBJECT INSPECTOR</div><h2>Agent details</h2><div className="object"><span style={{color:active.color}}><Cpu size={24}/></span><div><b>{active.name}</b><small>{active.role}</small></div><i>{active.state}</i></div><div className="section"><div className="eyebrow">IDENTITY</div><p><span>Node ID</span><code>{active.id}</code></p><p><span>Execution</span><b>Not connected</b></p><p><span>Autonomy</span><b>Not configured</b></p></div><div className="section"><div className="eyebrow">CURRENT TASK</div><div className="task"><b>Task summary</b><p>{active.task}</p><small>No live reasoning or tool activity available.</small></div></div><div className="section"><div className="eyebrow">CONNECTIONS</div><p><span>Dependencies</span><b>{active.id==='orchestrator'?'3 downstream':'1 upstream'}</b></p><p><span>Inputs / outputs</span><b>Not available</b></p></div><div className="section"><div className="eyebrow">OBSERVABILITY / RECENT EVENTS</div><div className="task">Recent events for the selected run. Start a smoke test to inspect node lifecycle events. Model-driven agent reasoning is not connected yet.</div><div className="approval-list">{historyEvents.filter(event=>!activeRun||event.payload.runId===activeRun.id).slice().reverse().slice(0,6).map(event=><article className="approval-item" key={event.id}><b>{event.type}</b><small>{new Date(event.timestamp).toLocaleTimeString()}</small><p>{typeof event.payload.nodeId==='string'?'Node '+event.payload.nodeId:typeof event.payload.status==='string'?'Status '+event.payload.status:'Workspace event'}</p></article>)}</div></div><div className="section approval-panel"><div className="eyebrow"><ShieldCheck size={12}/> PERSISTENT APPROVAL QUEUE <span>{approvals.length.toString().padStart(2,'0')}</span></div><p className="approval-note">Manual approval ledger. Approving a record does not execute its described action.</p><label className="provider-label">ACTION</label><input className="provider-input" value={approvalAction} onChange={e=>setApprovalAction(e.target.value)} placeholder="e.g. write-file"/><label className="provider-label">SUMMARY</label><textarea className="provider-input provider-prompt" value={approvalSummary} onChange={e=>setApprovalSummary(e.target.value)} placeholder="Describe the proposed operation and its scope…" rows={2}/><button className="provider-button" onClick={createApproval}>Create pending approval</button><div className="approval-list">{approvals.map(item=><article className="approval-item" key={item.id}><b>{item.action}</b><p>{item.summary}</p><small>{new Date(item.createdAt).toLocaleString()}</small><div><button onClick={()=>decideApproval(item.id,'approved')}>Approve</button><button onClick={()=>decideApproval(item.id,'denied')}>Deny</button></div></article>)}</div><small className="approval-message">{approvalMessage}</small></div><div className="section provider-panel"><div className="eyebrow"><KeyRound size={12}/> MODEL PROVIDER / GROQ</div><div className="provider-status"><i className={providerConfigured?'connected':''}/>{providerMessage}</div><label className="provider-label">API KEY <span>ENCRYPTED AT REST</span></label><input className="provider-input" type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="gsk_… (desktop app only)"/><button className="provider-button" onClick={saveGroq} disabled={providerBusy||!apiKey.trim()}>Store credential securely</button><label className="provider-label">PROMPT</label><textarea className="provider-input provider-prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Ask the Groq model something…" rows={3}/><button className="provider-button primary" onClick={askGroq} disabled={providerBusy||!providerConfigured||!prompt.trim()}><Send size={12}/>{providerBusy?'Working…':'Send prompt'}</button>{answer&&<div className="provider-answer">{answer}</div>}</div><div className="safe">The local typed graph executor is enabled for deterministic built-in nodes. External tools and autonomous model-driven execution remain disabled until policy, approval and tool adapters are connected.</div></aside></section>
     <footer className="status"><span>â  DEVELOPMENT PREVIEW</span><span>LOCAL GRAPH ENGINE <b>GUARDED</b></span><span>MODEL <b>{providerConfigured?'GROQ CONFIGURED':'NOT CONFIGURED'}</b></span><span className="spacer"/>v0.1.0 Â· Electron Â· Babylon.js</footer>
   </main>
