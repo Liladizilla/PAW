@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 const paw = Object.freeze({
   platform: process.platform,
+  resolveWorkspaceAsset: (uri: string) => ipcRenderer.invoke('paw:assets:resolve', uri),
   version: '0.1.0',
   runtimeStatus: () => ipcRenderer.invoke('paw:runtime-status'),
   validateGraph: (graph: unknown) => ipcRenderer.invoke('paw:graph:validate', graph),
