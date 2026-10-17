@@ -97,7 +97,14 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
           }
           throw error
         }
-        if(sceneDisposed){imported.dispose();throw new Error('Scene closed before import completed.')}
+        if(sceneDisposed){
+          imported.dispose()
+          try { await window.paw.discardImportedGlbAsset(picked.asset.uri) }
+          catch (cleanupError) {
+            throw new Error('Scene closed during import and the copied model could not be removed: ' + (cleanupError instanceof Error ? cleanupError.message : 'Unknown cleanup error'))
+          }
+          throw new Error('Scene closed before import completed.')
+        }
         const id='asset-entity:'+picked.asset.id
         const worldTarget=renderToWorld({x:camera.target.x,y:0,z:camera.target.z},worldOriginCoordinator.origin)
         imported.value.position.set(worldTarget.x,worldTarget.y,worldTarget.z)
