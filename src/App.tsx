@@ -208,16 +208,16 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       }
       signalBulbs.push({axis:cornerX<0?'x':'z',red,amber,green})
     }
-    const signalCycle=30
+    const signalCycle=36
     let cityClock=0
     let activeTrafficPhase:'x-green'|'x-amber'|'pedestrians-a'|'z-green'|'z-amber'|'pedestrians-b'='x-green'
     const getTrafficPhase=(time:number):typeof activeTrafficPhase=>{
       const t=time%signalCycle
       if(t<8)return 'x-green'
       if(t<10)return 'x-amber'
-      if(t<15)return 'pedestrians-a'
-      if(t<23)return 'z-green'
-      if(t<25)return 'z-amber'
+      if(t<18)return 'pedestrians-a'
+      if(t<26)return 'z-green'
+      if(t<28)return 'z-amber'
       return 'pedestrians-b'
     }
     const isWalkPhase=(phase:typeof activeTrafficPhase)=>phase==='pedestrians-a'||phase==='pedestrians-b'
