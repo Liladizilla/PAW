@@ -36,3 +36,135 @@ body{min-width:0;min-height:0}
 .approval-item button{flex:1;padding:6px;border:1px solid #35483f;border-radius:4px;background:#121f1a;color:#a8d8c7;font-size:8px;cursor:pointer}
 .approval-item button:last-child{border-color:#4b3535;background:#211414;color:#d9aaa7}
 .approval-message{display:block;margin-top:8px}
+
+
+/* Organic spatial UI pass: soft forms, calmer rhythm, tactile controls. */
+:root {
+  --bg: #101113;
+  --panel: #151617;
+  --border: #2a2b2d;
+  --muted: #96938c;
+  --accent: #d8b57b;
+  --mono: 'DM Mono', ui-monospace, monospace;
+  color-scheme: dark;
+}
+body { background: #101113; }
+.app {
+  background: radial-gradient(ellipse at 54% 44%, #202020 0%, #151617 48%, #101113 100%);
+  letter-spacing: -.012em;
+}
+.top, .rail, .left, .inspector { background: #141516; }
+.top { border-color: #292a2b; gap: 24px; }
+.brandicon {
+  border-radius: 13px;
+  background: #25231f;
+  border-color: #514636;
+  color: #e2c18a;
+}
+.brand b { letter-spacing: .12em; }
+.workspace-tag, .spatial {
+  border-radius: 999px;
+  border-color: #343330;
+  background: #1b1b1a;
+  padding: 8px 12px;
+}
+.workspace-tag i { background: #d8b57b; }
+.rail { border-color: #292a2b; }
+.rail svg { transition: color .22s ease, transform .22s ease; }
+.rail svg:hover { color: #e0c18e; transform: translateY(-1px); }
+.layout { gap: 0; }
+.left { padding: 22px 15px 14px; border-color: #292a2b; }
+.inspector { border-color: #292a2b; padding: 21px 16px 14px; }
+.eyebrow { color: #9a958a; letter-spacing: .12em; }
+.search, .provider-input {
+  border-radius: 10px;
+  border-color: #333431;
+  background: #1a1b1b;
+  transition: border-color .2s ease, background .2s ease;
+}
+.search:focus-within, .provider-input:focus {
+  border-color: #8c7654;
+  background: #1d1d1b;
+  box-shadow: none;
+}
+.agent {
+  border-radius: 12px;
+  padding: 10px 8px;
+  transition: background .22s ease, border-color .22s ease, transform .22s ease;
+}
+.agent:hover { transform: translateX(2px); background: #1d1e1e; }
+.agent.chosen {
+  background: #24231f;
+  border-color: #514735;
+  box-shadow: inset 2px 0 #d8b57b;
+}
+.glyph {
+  border-radius: 10px;
+  background: #20201e;
+  border-color: #36342f;
+}
+.runtime, .object, .task, .approval-item {
+  border-radius: 12px;
+  background: #1b1c1b;
+  border-color: #333431;
+}
+.runtime { padding: 13px 11px; }
+.viewport { background: transparent; }
+.viewhead {
+  padding: 19px 22px 16px;
+  border-color: #292a2b;
+}
+.viewhead h2 { font-size: 15px; letter-spacing: -.025em; }
+.scene {
+  background: radial-gradient(ellipse at 50% 47%, #242522 0%, #1a1b1a 45%, #141515 100%);
+}
+.world { cursor: grab; }
+.world:active { cursor: grabbing; }
+.scene-label, .hint { color: #a19d92; }
+.viewfoot { border-color: #292a2b; color: #969185; }
+.object {
+  padding: 13px 11px;
+  border-radius: 14px;
+  background: #20211f;
+}
+.object > span {
+  border-radius: 12px;
+  background: #292925;
+  border-color: #3c3a32;
+}
+.section { border-color: #292a2b; }
+.provider-button {
+  border-radius: 10px;
+  border-color: #41403a;
+  background: #242522;
+  color: #d6d1c6;
+  padding: 10px;
+  transition: transform .18s ease, background .18s ease, border-color .18s ease;
+}
+.provider-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #2b2b27;
+  border-color: #655840;
+}
+.provider-button.primary {
+  border-color: #6e5b3e;
+  background: #342d22;
+  color: #f0d5a4;
+}
+.provider-button.primary:hover:not(:disabled) { background: #403625; }
+.provider-answer {
+  border-radius: 10px;
+  background: #1b201d;
+  border-color: #394238;
+}
+.approval-item { padding: 11px; }
+.approval-item button { border-radius: 8px; }
+.status { border-color: #292a2b; background: #141516; color: #8e897f; }
+@media (prefers-reduced-motion: no-preference) {
+  .brandicon { transition: border-radius .35s ease, background .35s ease; }
+  .brandicon:hover { border-radius: 16px; background: #302a20; }
+}
+@media(max-width:900px) {
+  .left { padding: 16px 12px; }
+  .inspector { padding: 17px 12px; }
+}
