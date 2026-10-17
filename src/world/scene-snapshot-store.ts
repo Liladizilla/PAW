@@ -11,11 +11,16 @@ export interface SnapshotStorage {
 
 /** Loads and migrates local scene state, writing the canonical v3 form before returning. */
 export function loadStoredSceneSnapshot(storage: SnapshotStorage): SceneSnapshot | undefined {
-  const serialized = storage.getItem(SCENE_SNAPSHOT_STORAGE_KEY) ?? storage.getItem(LEGACY_SCENE_SNAPSHOT_STORAGE_KEY)
-  if (serialized === null) return undefined
-  const snapshot = decodeSceneSnapshot(serialized)
+  const canonical = storage.getItem(SCENE_SNAPSHOT_STORAGE_KEY)
+  const legacy = storage.getItem(LEGACY_SCENE_SNAPSHOT_STORAGE_KEY)
+  if (canonical === null && legacy === null) return undefined
+
+  // Prefer canonical state when present, but do not discard a recoverable legacy copy
+  // until the canonical representation has been validated and persisted successfully.
+  const source = canonical ?? legacy
+  const snapshot = decodeSceneSnapshot(source as string)
   storage.setItem(SCENE_SNAPSHOT_STORAGE_KEY, encodeSceneSnapshot(snapshot))
-  storage.removeItem(LEGACY_SCENE_SNAPSHOT_STORAGE_KEY)
+  if (legacy !== null) storage.removeItem(LEGACY_SCENE_SNAPSHOT_STORAGE_KEY)
   return snapshot
 }
 
