@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, Search, Send, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
-import { ArcRotateCamera, Color3, Engine, HemisphericLight, MeshBuilder, PBRMaterial, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
+import { ArcRotateCamera, Color3, Curve3, Engine, HemisphericLight, MeshBuilder, PBRMaterial, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
 import { demoGraph } from './runtime/demo-graph'
 
 type Agent = { id:string; name:string; role:string; color:string; x:number; z:number; state:string; task:string }
@@ -18,19 +18,45 @@ function World({onSelect}:{onSelect:(id:string)=>void}) {
     if(!canvas.current)return
     const engine=new Engine(canvas.current,true,{adaptToDeviceRatio:true,stencil:true})
     const scene=new Scene(engine);scene.clearColor.set(.035,.043,.055,1)
-    const camera=new ArcRotateCamera('camera',-Math.PI/2.2,1.08,17,Vector3.Zero(),scene)
-    camera.attachControl(canvas.current,true);camera.lowerRadiusLimit=7;camera.upperRadiusLimit=34;camera.wheelPrecision=45
-    new HemisphericLight('ambient',new Vector3(.1,1,.1),scene).intensity=.9
+    const camera=new ArcRotateCamera('camera',-Math.PI/2.2,1.12,18,Vector3.Zero(),scene)
+    camera.attachControl(canvas.current,true);camera.lowerRadiusLimit=7;camera.upperRadiusLimit=34;camera.wheelPrecision=52;camera.panningSensibility=85;camera.inertia=.82
+    new HemisphericLight('ambient',new Vector3(.1,1,.1),scene).intensity=.82
     const floor=MeshBuilder.CreateGround('floor',{width:100,height:100},scene)
     const fm=new StandardMaterial('floor-mat',scene);fm.diffuseColor=new Color3(.045,.055,.07);floor.material=fm
     for(let i=-10;i<=10;i++){const a=MeshBuilder.CreateLines('grid-a'+i,{points:[new Vector3(i*2,.015,-20),new Vector3(i*2,.015,20)]},scene);const b=MeshBuilder.CreateLines('grid-b'+i,{points:[new Vector3(-20,.015,i*2),new Vector3(20,.015,i*2)]},scene);a.color=b.color=new Color3(.12,.15,.19)}
-    for(const agent of agents){
-      const root=MeshBuilder.CreateBox(agent.id,{width:2.15,height:1.25,depth:1.55},scene);root.position=new Vector3(agent.x,.9,agent.z);root.metadata={agentId:agent.id}
-      const mat=new PBRMaterial(agent.id+'-mat',scene);mat.albedoColor=Color3.FromHexString(agent.color);mat.metallic=.72;mat.roughness=.36;root.material=mat
-      const top=MeshBuilder.CreateBox(agent.id+'-top',{width:1.55,height:.16,depth:1.1},scene);top.position=new Vector3(agent.x,1.62,agent.z);const tm=new StandardMaterial(agent.id+'-tm',scene);tm.diffuseColor=new Color3(.12,.15,.2);tm.emissiveColor=Color3.FromHexString(agent.color).scale(.12);top.material=tm;top.metadata={agentId:agent.id}
-      const core=MeshBuilder.CreateCylinder(agent.id+'-core',{height:.12,diameter:.72},scene);core.position=new Vector3(agent.x,1.74,agent.z);const cm=new StandardMaterial(agent.id+'-cm',scene);cm.emissiveColor=Color3.FromHexString(agent.color).scale(.45);core.material=cm;core.metadata={agentId:agent.id}
+    // A quiet orbital sculpture anchors the workspace without competing with the graph.
+    for(const [index,diameter] of [5.2,6.1,7].entries()){
+      const orbit=MeshBuilder.CreateTorus('core-orbit-'+index,{diameter,thickness:index===0?.055:.025,tessellation:96},scene)
+      orbit.position=new Vector3(0,.16+index*.035,0);orbit.rotation.x=Math.PI/2;orbit.rotation.z=index*.16
+      const orbitMat=new StandardMaterial('core-orbit-mat-'+index,scene)
+      orbitMat.diffuseColor=new Color3(.22,.28,.32);orbitMat.emissiveColor=new Color3(.055,.075,.085);orbitMat.alpha=index===2?.45:.78
+      orbit.material=orbitMat
     }
-    for(const id of ['research','builder','validator']){const a=agents[0],b=agents.find(x=>x.id===id)!;const tube=MeshBuilder.CreateTube('tube-'+id,{path:[new Vector3(a.x,.7,a.z),new Vector3((a.x+b.x)/2,.6,(a.z+b.z)/2),new Vector3(b.x,.9,b.z)],radius:.055},scene);const m=new StandardMaterial('tube-mat-'+id,scene);m.diffuseColor=new Color3(.19,.27,.35);m.emissiveColor=new Color3(.035,.08,.12);tube.material=m}
+    for(const agent of agents){
+      const central=agent.id==='orchestrator'
+      const root=MeshBuilder.CreateSphere(agent.id,{diameter:central?2.15:1.8,segments:32},scene)
+      root.scaling=new Vector3(central?1.12:1.08,central?.82:.72,central?.98:.88)
+      root.position=new Vector3(agent.x,central?1.02:.82,agent.z);root.metadata={agentId:agent.id}
+      const mat=new PBRMaterial(agent.id+'-mat',scene);mat.albedoColor=Color3.FromHexString(agent.color);mat.metallic=.28;mat.roughness=.48;root.material=mat
+      const top=MeshBuilder.CreateSphere(agent.id+'-top',{diameter:central?1.18:.96,segments:24},scene)
+      top.scaling=new Vector3(1,.19,.82);top.position=new Vector3(agent.x,central?1.79:1.48,agent.z)
+      const tm=new StandardMaterial(agent.id+'-tm',scene);tm.diffuseColor=new Color3(.12,.15,.2);tm.emissiveColor=Color3.FromHexString(agent.color).scale(.08);top.material=tm;top.metadata={agentId:agent.id}
+      const core=MeshBuilder.CreateTorus(agent.id+'-core',{diameter:central?.72:.56,thickness:.09,tessellation:40},scene)
+      core.position=new Vector3(agent.x,central?1.96:1.6,agent.z);core.rotation.x=Math.PI/2
+      const cm=new StandardMaterial(agent.id+'-cm',scene);cm.diffuseColor=Color3.FromHexString(agent.color);cm.emissiveColor=Color3.FromHexString(agent.color).scale(.22);core.material=cm;core.metadata={agentId:agent.id}
+    }
+    for(const id of ['research','builder','validator']){
+      const a=agents[0],b=agents.find(x=>x.id===id)!
+      const curve=Curve3.CreateCatmullRomSpline([
+        new Vector3(a.x,.72,a.z),
+        new Vector3(a.x+(b.x-a.x)*.28,.46,a.z+(b.z-a.z)*.18),
+        new Vector3((a.x+b.x)/2,.34,(a.z+b.z)/2),
+        new Vector3(a.x+(b.x-a.x)*.82,.46,a.z+(b.z-a.z)*.84),
+        new Vector3(b.x,.72,b.z)
+      ],24,false)
+      const tube=MeshBuilder.CreateTube('tube-'+id,{path:curve.getPoints(),radius:.065},scene)
+      const m=new StandardMaterial('tube-mat-'+id,scene);m.diffuseColor=new Color3(.24,.31,.35);m.emissiveColor=new Color3(.055,.085,.095);tube.material=m
+    }
     scene.onPointerObservable.add(info=>{if(info.type!==1)return;const pick=scene.pick(scene.pointerX,scene.pointerY,m=>typeof m.metadata?.agentId==='string');const id=pick?.pickedMesh?.metadata?.agentId;if(typeof id==='string')onSelect(id)})
     engine.runRenderLoop(()=>scene.render());const resize=()=>engine.resize();window.addEventListener('resize',resize)
     return()=>{window.removeEventListener('resize',resize);engine.stopRenderLoop();scene.dispose();engine.dispose()}
