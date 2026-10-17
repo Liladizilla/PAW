@@ -115,7 +115,7 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     makeBuilding('workshop-annex',26,14,7.2,8.2,6,'#70695c',3)
     makeBuilding('planning-office',-26,14,6.8,8.2,9,'#5d625d',5)
     // Seeded procedural lots add varied towers, slabs, stepped buildings, cylindrical forms and open courtyards.
-    const proceduralLots=generateCityLots(304,4107)
+    const proceduralLots=generateCityLots(320,4107)
     const proceduralMaterials=new Map<string,StandardMaterial>()
     const cityMaterial=(key:string,color:string)=>{
       const cached=proceduralMaterials.get(key)
@@ -334,6 +334,9 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
             }
           }
         }
+        // Keep route-following pedestrians inside the clear crosswalk/sidewalk corridor beside the landmark blocks.
+        if(p.axis==='x'&&(p.mode==='destination'||p.mode==='return'))p.x=Math.max(-6,Math.min(6,p.x))
+        if(p.axis==='z'&&(p.mode==='destination'||p.mode==='return'))p.z=Math.max(-6,Math.min(6,p.z))
       }
       for(let batch=0;batch<3;batch++){
         const group=crowdBatches[batch]
