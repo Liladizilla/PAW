@@ -1,6 +1,6 @@
 # P.A.W. Delivery Pipelines
 
-Status: initial CI/security pipelines are operational. Preview deployment is supplied by Vercel Git integration. Native release packaging exists but has not been certified on all three operating systems.
+Status: GitHub Actions CI/security pipelines are operational. P.A.W. is a native desktop engine/workspace; Vercel and hosted web-preview deployment are not part of its build, runtime, or release path. Native release packaging exists but has not been certified on all three operating systems.
 
 ## Pipeline map
 
@@ -18,12 +18,12 @@ Status: initial CI/security pipelines are operational. Preview deployment is sup
 
 ## Current workflows
 
-- `.github/workflows/ci.yml`: typecheck and production build on PRs to main, pushes to main and manual dispatch.
+- `.github/workflows/ci.yml`: typecheck, unit tests and production build on PRs to main, pushes to main and manual dispatch.
 - `.github/workflows/release.yml`: native platform packaging on version tags or manual dispatch; publishes GitHub Releases for version tags.
 - `.github/workflows/security.yml`: Gitleaks secret scan and npm audit report on PRs, main pushes, weekly schedule and manual dispatch.
 - `.github/dependabot.yml`: weekly npm dependency proposals and monthly GitHub Actions updates.
 
-These workflows are a first operational baseline, not full release certification. `package-lock.json` is committed and CI has completed a clean `npm ci`, typecheck, runtime unit-test and production-build run successfully. Dependency changes must update `package.json` and `package-lock.json` together. CI now uses `npm ci` only and has read-only repository permissions, so it cannot silently rewrite dependency resolution on a pull request. The security workflow audits the lockfile and retains its JSON report; critical findings fail the job, while high and moderate findings are reported for triage before release.
+These workflows are a first operational baseline, not full release certification. There is no Vercel project requirement, web deployment step, or hosted preview dependency for the desktop engine. `package-lock.json` is committed and CI has completed a clean `npm ci`, typecheck, runtime unit-test and production-build run successfully. Dependency changes must update `package.json` and `package-lock.json` together. CI now uses `npm ci` only and has read-only repository permissions, so it cannot silently rewrite dependency resolution on a pull request. The security workflow audits the lockfile and retains its JSON report; critical findings fail the job, while high and moderate findings are reported for triage before release.
 
 ## CI contract
 
