@@ -324,6 +324,16 @@ function createWindow() {
       contextIsolation: true, nodeIntegration: false, sandbox: true
     }
   })
+  if (process.env.PAW_DESKTOP_SMOKE === '1') {
+    window.webContents.once('did-finish-load', () => {
+      process.stdout.write('PAW_DESKTOP_SMOKE_RENDERER_READY\\n')
+      app.quit()
+    })
+    window.webContents.once('did-fail-load', (_event, errorCode, description) => {
+      process.stderr.write('PAW_DESKTOP_SMOKE_RENDERER_FAILED ' + errorCode + ' ' + description + '\\n')
+      app.exit(1)
+    })
+  }
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) void shell.openExternal(url)
     return { action: 'deny' }
