@@ -107,7 +107,8 @@ function registerRuntimeIpc() {
       if (!frame || frame !== event.sender.mainFrame) {
         throw new Error('P.A.W. IPC is restricted to the trusted top-level renderer.')
       }
-      const expectedFileUrl = pathToFileURL(resolve(__dirname, '../renderer/index.html')).href
+      const expectedRenderer = process.env.PAW_DESKTOP_SMOKE === '1' ? 'smoke.html' : 'index.html'
+      const expectedFileUrl = pathToFileURL(resolve(__dirname, '../renderer/' + expectedRenderer)).href
       if (!isTrustedRendererUrl(frame.url, {
         packaged: app.isPackaged,
         expectedFileUrl,
@@ -348,7 +349,8 @@ function createWindow() {
     if (url.startsWith('https://')) void shell.openExternal(url)
     return { action: 'deny' }
   })
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) void window.loadURL(process.env.ELECTRON_RENDERER_URL)
+  if (process.env.PAW_DESKTOP_SMOKE === '1') void window.loadFile(join(__dirname, '../renderer/smoke.html'))
+  else if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) void window.loadURL(process.env.ELECTRON_RENDERER_URL)
   else void window.loadFile(join(__dirname, '../renderer/index.html'))
 }
 app.whenReady().then(async () => {
