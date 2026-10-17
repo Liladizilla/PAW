@@ -86,12 +86,12 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 
 - [x] Document engine layer ownership, world/entity model, large-world strategy, navigation contracts, persistence boundaries and engine references.
 - [x] Extract Babylon renderer, scene and camera lifecycle into a separately owned engine host module.
-- [x] Add deterministic chunk coordinate/ring planning, a reusable uniform-grid spatial index and tests.
+- [x] Add deterministic chunk coordinate/ring planning, tested deterministic city layouts with continuous road seams, a reusable uniform-grid spatial index and tests.
 - [x] Connect chunk planning to deterministic Babylon mesh generation/disposal for outer-city roads, sidewalks and buildings; world-origin strategy remains open.
 - [x] Add versioned asset catalog metadata and workspace-relative path validation with tests.
-- [x] Persist and validate versioned camera/world-view snapshots locally.\n- [ ] Add real GLTF/GLB import pipeline, editable entity components, undo/redo and full scene serialization.
+- [x] Persist and validate versioned camera/world-view snapshots locally.\n- [x] Add validated GLTF/GLB import boundary with driver injection, path checks and disposal tests.\n- [ ] Register the Babylon GLTF loader and privileged workspace resolver; finish end-to-end asset rehydration, editable entity components, undo/redo and full scene serialization.
 - [x] Add a reusable bounded fixed-step clock with catch-up limits and tests.
-- [ ] Move the live crowd/traffic loop to the shared fixed-step clock (crowd neighbor queries now use the spatial index).
+- [x] Move the live crowd/traffic loop to the shared fixed-step clock; crowd neighbor queries use the spatial index.
 
 Acceptance: rendering, world simulation, agent runtime and persistence have separate owners and tested contracts.
 
