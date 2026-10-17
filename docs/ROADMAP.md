@@ -98,6 +98,7 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Parent rehydrated imported assets under the shared world root so saved world-space transforms project correctly after a nonzero-origin restore.
 - [x] Isolate snapshot storage/migration and asset rehydration planning/transform application into tested contracts, including restart-shaped storage tests, missing asset references and visibility restoration.
 - [x] Surface missing asset catalogs, invalid catalogs and unavailable desktop asset resolvers instead of silently skipping saved imported entities; cover restore prerequisite messages with unit tests.
+- [x] Report the number of models actually rehydrated and surface per-asset loader failures; cover bounded restore summaries with unit tests.
 - [x] Add Babylon NullEngine tests for chunk loading, movement-based eviction, idempotent updates and resource disposal.
 - [x] Add tested world/render coordinate conversions, chunk-snapped origin selection, and a transactional participant coordinator with rollback tests; live scene integration remains open.
 - [x] Add tested transactional adapters for ordinary render positions, camera focus, thin-instance matrix translations with renderer notifications, scalar X/Z coordinates, and coupled traffic coordinates plus vehicle meshes.
