@@ -449,7 +449,6 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         }
         const catalog=parsed as AssetCatalogSnapshot
         const assetDriver=createBabylonAssetLoader(scene)
-        const plan=planAss        const assetDriver=createBabylonAssetLoader(scene)
         const plan=planAssetRehydration([...savedEntityRecords.values()],catalog,agents.map(agent=>agent.id))
         const bridge=window.paw as any
         const availability=bridge.checkAssetFiles?await bridge.checkAssetFiles(plan.ready.map((item:{asset:{uri:string}})=>item.asset.uri)):[]
@@ -476,7 +475,41 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
           }
         }
         const restoreReport=formatAssetRestoreReport({restoredEntityIds,missingCatalog:missingCatalogMessages,missingFiles:missingFileMessages,failures:restoreFailures})
-        if(restoreReport)onAssetRestoreStatus(restoreReport)hicle.dir>0?-5.3:5.3
+        if(restoreReport)onAssetRestoreStatus(restoreReport)
+      }catch(error){onAssetRestoreStatus('Restore failed: '+(error instanceof Error?error.message:'unknown asset recovery error'));console.warn('P.A.W. saved asset catalog is invalid; asset entities were not rehydrated.',error)}
+    })()
+    for(const id of ['research','builder','validator']){
+      const a=agents[0],b=agents.find(x=>x.id===id)!
+      const curve=Curve3.CreateCatmullRomSpline([
+        new Vector3(a.x,.72,a.z),
+        new Vector3(a.x+(b.x-a.x)*.28,.46,a.z+(b.z-a.z)*.18),
+        new Vector3((a.x+b.x)/2,.34,(a.z+b.z)/2),
+        new Vector3(a.x+(b.x-a.x)*.82,.46,a.z+(b.z-a.z)*.84),
+        new Vector3(b.x,.72,b.z)
+      ],24,false)
+      const tube=MeshBuilder.CreateTube('tube-'+id,{path:curve.getPoints(),radius:.065},scene)
+      const m=new StandardMaterial('tube-mat-'+id,scene);m.diffuseColor=new Color3(.24,.31,.35);m.emissiveColor=new Color3(.055,.085,.095);tube.material=m
+    }
+    scene.onBeforeRenderObservable.add(()=>{
+      const currentOrigin=worldOriginCoordinator.origin
+      const worldFocus=renderToWorld({x:camera.target.x,y:camera.target.y,z:camera.target.z},currentOrigin)
+      const rebase=worldOriginCoordinator.rebase(worldFocus)
+      worldOrigin=rebase.current
+      cityStreamer.update(camera.target,worldOrigin)
+      simulationClock.advance(engine.getDeltaTime()/1000,(dt)=>{
+      cityClock+=dt
+      const phase=getTrafficPhase(cityClock)
+      for(const signal of signalBulbs){
+        const green=(signal.axis==='x'&&phase==='x-green')||(signal.axis==='z'&&phase==='z-green')
+        const amber=(signal.axis==='x'&&phase==='x-amber')||(signal.axis==='z'&&phase==='z-amber')
+        signal.red.emissiveColor=green||amber?Color3.Black():Color3.FromHexString('#e45d51').scale(.85)
+        signal.amber.emissiveColor=amber?Color3.FromHexString('#e0b65f').scale(.85):Color3.Black()
+        signal.green.emissiveColor=green?Color3.FromHexString('#71b88a').scale(.85):Color3.Black()
+      }
+      for(const vehicle of vehicles){
+        const allowed=(vehicle.axis==='x'&&phase==='x-green')||(vehicle.axis==='z'&&phase==='z-green')
+        const current=vehicle.coordinate
+        const stop=vehicle.dir>0?-5.3:5.3
         const atStop=vehicle.dir>0?current>=stop:current<=stop
         let blocked=!allowed&&atStop
         if(allowed||!atStop){
