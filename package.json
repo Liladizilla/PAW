@@ -1,6 +1,6 @@
 {
   "name": "paw-personal-agent-workspace",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "P.A.W. — Personal Agent Workspace",
   "author": "Liladizilla",
@@ -10,10 +10,10 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "package": "electron-vite build && electron-builder",
-    "package:linux": "electron-vite build && electron-builder --linux AppImage deb",
-    "package:windows": "electron-vite build && electron-builder --win nsis",
-    "package:mac": "electron-vite build && electron-builder --mac dmg zip",
+    "package": "electron-vite build && electron-builder --publish never",
+    "package:linux": "electron-vite build && electron-builder --linux AppImage deb --publish never",
+    "package:windows": "electron-vite build && electron-builder --win nsis --publish never",
+    "package:mac": "electron-vite build && electron-builder --mac dmg zip --publish never",
     "test": "tsx --test src/runtime/*.test.ts",
     "test:watch": "tsx --test --watch src/runtime/*.test.ts"
   },
@@ -64,5 +64,6 @@
         "zip"
       ]
     }
-  }
+  },
+  "main": "out/main/index.js"
 }
