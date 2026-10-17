@@ -34,7 +34,7 @@
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "tsx": "^4.20.6",
-    "rollup": "4.59.0"
+    "rollup": "4.64.6"
   },
   "build": {
     "appId": "dev.paw.workspace",
