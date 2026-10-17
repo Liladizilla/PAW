@@ -53,6 +53,12 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     const warmGlass=material('warm-window-light','#9b8159','#463720')
     const concrete=material('station-concrete','#55534b')
     const dark=material('station-dark','#171a19')
+    const road=(name:string,x:number,z:number,width:number,depth:number)=>{
+      const mesh=MeshBuilder.CreateBox(name,{width,height:.09,depth},scene);mesh.position.set(x,.045,z);mesh.material=asphalt
+    }
+    const sidewalk=(name:string,x:number,z:number,width:number,depth:number)=>{
+      const mesh=MeshBuilder.CreateBox(name,{width,height:.16,depth},scene);mesh.position.set(x,.08,z);mesh.material=pavement
+    }
     // Continuous arterial roads and sidewalks repeat beyond the viewport; the camera never opens on a tiny island.
     for(let coordinate=-320;coordinate<=320;coordinate+=32){
       road('world-road-vertical-'+coordinate,coordinate,0,6,2400)
@@ -61,12 +67,6 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       sidewalk('world-walk-vertical-east-'+coordinate,coordinate+3.65,0,1.25,2400)
       sidewalk('world-walk-horizontal-north-'+coordinate,0,coordinate-3.65,2400,1.25)
       sidewalk('world-walk-horizontal-south-'+coordinate,0,coordinate+3.65,2400,1.25)
-    }
-    const road=(name:string,x:number,z:number,width:number,depth:number)=>{
-      const mesh=MeshBuilder.CreateBox(name,{width,height:.09,depth},scene);mesh.position.set(x,.045,z);mesh.material=asphalt
-    }
-    const sidewalk=(name:string,x:number,z:number,width:number,depth:number)=>{
-      const mesh=MeshBuilder.CreateBox(name,{width,height:.16,depth},scene);mesh.position.set(x,.08,z);mesh.material=pavement
     }
     // A legible street grid: asphalt, raised pavements, curbs and dashed lane markings.
     road('north-south-avenue-north',0,-14.1,5.2,39.8);road('north-south-avenue-south',0,26.75,5.2,18.5)
