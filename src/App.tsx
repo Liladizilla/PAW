@@ -3,7 +3,7 @@ import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Netwo
 import { Color3, Curve3, DirectionalLight, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, StandardMaterial, Vector3 } from '@babylonjs/core'
 import { createEngineHost } from './world/engine-host'
 import { createCityChunkStreamer } from './world/streamed-city'
-import { validateAssetCatalog, type AssetCatalogSnapshot } from './world/asset-catalog'
+import { upsertAssetCatalog, validateAssetCatalog, type AssetCatalogSnapshot } from './world/asset-catalog'
 import { importWorkspaceAsset } from './world/asset-importer'
 import { createBabylonAssetLoader } from './world/babylon-asset-loader'
 import type { SceneEntityRecord } from './world/scene-snapshot'
@@ -56,8 +56,7 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
         const currentRaw=localStorage.getItem('paw.asset.catalog.v1')
         let catalog:AssetCatalogSnapshot={schemaVersion:1,revision:0,assets:[]}
         if(currentRaw){const parsed:unknown=JSON.parse(currentRaw);const result=validateAssetCatalog(parsed);if(!result.valid)throw new Error('Saved asset catalog is invalid: '+result.issues.join('; '));catalog=parsed as AssetCatalogSnapshot}
-        catalog={...catalog,revision:catalog.revision+1,assets:[...catalog.assets.filter(asset=>asset.id!==picked.asset.id),picked.asset]}
-        const validation=validateAssetCatalog(catalog);if(!validation.valid)throw new Error('Imported asset rejected: '+validation.issues.join('; '))
+        catalog=upsertAssetCatalog(catalog,picked.asset)
         const imported=await importWorkspaceAsset(picked.asset,uri=>window.paw.resolveWorkspaceAsset(uri),createBabylonAssetLoader(scene))
         if(sceneDisposed){imported.dispose();throw new Error('Scene closed before import completed.')}
         const id='asset-entity:'+picked.asset.id
