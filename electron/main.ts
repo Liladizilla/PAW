@@ -24,7 +24,7 @@ const ASSET_MIME: Record<string, string> = {
 }
 function assetRoot(): string { return join(app.getPath('userData'), 'paw', 'assets') }
 function safeAssetPath(uri: string, modelOnly = false): string {
-  if (typeof uri !== 'string' || !SAFE_ASSET_PATH.test(uri) || uri.includes('\\\\') ||
+  if (typeof uri !== 'string' || !SAFE_ASSET_PATH.test(uri) || uri.includes(String.fromCharCode(92)) ||
       uri.split('/').some(part => !part || part === '.' || part === '..') ||
       (modelOnly && !SAFE_MODEL_PATH.test(uri))) throw new Error('Asset URI must be a safe, workspace-relative assets/ path.')
   const root = resolve(assetRoot())
