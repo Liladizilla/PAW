@@ -5,12 +5,12 @@ Status: CI and security checks are operational. Native packaging is exercised on
 ## Desktop release pipeline
 
 - The `native-package-check` pull-request label runs all three native packaging jobs before merge.
-- Version-tag pushes (`v*`) package Linux AppImage/deb, Windows NSIS, and macOS dmg/zip.
+- Version-tag pushes (`v*`) package Linux AppImage/deb/RPM, Windows NSIS, and macOS dmg/zip.
 - Platform outputs are uploaded as distinct workflow artifacts; missing outputs fail the job.
 - The publication job runs only for version tags and only after every platform job succeeds.
 - Publication aggregates the artifacts, creates and verifies `SHA256SUMS.txt`, and attaches all files to the GitHub Release.
 - Manual workflow runs and labeled PR runs validate packaging and upload temporary Actions artifacts; they do not publish a release.
-- After publication, manually test clean-machine install, launch/quit, workspace recovery, and real asset restoration before calling the release certified.
+- After publication, manually test clean-machine install, launch/quit, streamed city geometry, camera and agent controls, asset-import error reporting, workspace recovery, and scene restoration before calling the release certified. Fedora acceptance must use the RPM package or AppImage, not the Debian package.
 
 The release workflow has read-only repository permissions by default. Only the publication job receives `contents: write`. Platform packaging commands use `--publish never`; the dedicated publication job owns release uploads.
 
