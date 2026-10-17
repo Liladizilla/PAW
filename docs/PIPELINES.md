@@ -22,16 +22,16 @@ Status: GitHub Actions CI/security pipelines are operational. P.A.W. is a native
 - `.github/workflows/security.yml`: Gitleaks secret scan and npm audit report on PRs, pushes to `main` or `architecture/system-blueprint`, weekly schedule and manual dispatch.
 - `.github/dependabot.yml`: weekly npm dependency proposals and monthly GitHub Actions updates.
 
-These workflows are a first operational baseline, not full release certification. There is no Vercel project requirement, web deployment step, or hosted preview dependency for the desktop engine. A legacy Vercel commit status may still appear on historical/current commits from the former project integration; it is not produced by these workflows. If it blocks merging, remove that status from the repository's required checks or disconnect the old GitHub/Vercel integration in repository settings. Do not reintroduce Vercel as a desktop build dependency to satisfy it. The latest recorded CI run completed successfully for typecheck, unit tests and production build; the desktop smoke step is now included in CI for future runs. Dependency changes must update `package.json` and `package-lock.json` together. CI uses `npm ci` and read-only repository permissions, so it cannot silently rewrite dependency resolution on a pull request. The security workflow audits the lockfile and retains its JSON report; critical findings fail the job, while high and moderate findings are reported for triage before release.
+These workflows are a first operational baseline, not full release certification. There is no Vercel project requirement, web deployment step, or hosted preview dependency for the desktop engine. A legacy Vercel commit status may still appear on historical/current commits from the former project integration; it is not produced by these workflows. If it blocks merging, remove that status from the repository's required checks or disconnect the old GitHub/Vercel integration in repository settings. Do not reintroduce Vercel as a desktop build dependency to satisfy it. The latest recorded CI run completed successfully through typecheck, unit tests, production build and the Linux Electron renderer-startup smoke. The latest secret scan and dependency-audit jobs also completed successfully; review the retained audit report before releases, because a successful audit job does not mean every advisory is absent. Dependency changes must update `package.json` and `package-lock.json` together. CI uses `npm ci` and read-only repository permissions, so it cannot silently rewrite dependency resolution on a pull request. The security workflow audits the lockfile and retains its JSON report; critical findings fail the job, while high and moderate findings are reported for triage before release.
 
 ## CI contract
 
 1. Keep `package.json` and `package-lock.json` synchronized; use `npm ci` for all validation and packaging steps.
 2. Cache npm by lockfile hash after the lockfile exists.
-3. Run strict typecheck for renderer and Electron, unit tests, persistence tests, production builds, and the desktop startup smoke.
+3. Run strict typecheck for renderer and Electron, unit tests, persistence tests, production builds, and the Linux desktop startup smoke.
 4. Fail if expected build outputs are missing or Electron exits before renderer readiness.
 5. Run dependency audit and secret scanning. Report severity and dependency path; never silently ignore critical findings.
-6. Upload build artifacts on success and safe diagnostic reports on failure.
+6. Upload build artifacts on success and safe diagnostic reports on failure. Keep the Electron smoke bounded and require the renderer-ready marker; a process launch alone is not sufficient.
 7. Use least-privilege workflow permissions and cancel superseded PR runs.
 8. Pin third-party GitHub Actions to reviewed immutable SHAs before production release hardening.
 
