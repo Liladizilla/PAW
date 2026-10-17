@@ -29,14 +29,15 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     const cityStreamer=createCityChunkStreamer(scene)
     const savedEntityTransforms=new Map<string,{x:number;y:number;z:number}>()
     try{
-      const saved=localStorage.getItem('paw.scene.snapshot.v1')
+      const saved=localStorage.getItem('paw.scene.snapshot.v2')??localStorage.getItem('paw.scene.snapshot.v1')
       if(saved){
         const snapshot=decodeSceneSnapshot(saved)
         camera.alpha=snapshot.camera.alpha;camera.beta=snapshot.camera.beta;camera.radius=snapshot.camera.radius
         camera.target.set(snapshot.camera.target.x,snapshot.camera.target.y,snapshot.camera.target.z)
         for(const entity of snapshot.entities)savedEntityTransforms.set(entity.id,entity.transform.position)
+        localStorage.setItem('paw.scene.snapshot.v2',JSON.stringify(snapshot));localStorage.removeItem('paw.scene.snapshot.v1')
       }
-    }catch{localStorage.removeItem('paw.scene.snapshot.v1')}
+    }catch{localStorage.removeItem('paw.scene.snapshot.v1');localStorage.removeItem('paw.scene.snapshot.v2')}
     cameraControl.current={
       focus:(id:string)=>{const agent=agents.find(item=>item.id===id);if(!agent)return;const p=savedEntityTransforms.get(agent.id);camera.target=new Vector3(p?.x??agent.x,.8,p?.z??agent.z);camera.radius=13},
       reset:()=>{camera.target=Vector3.Zero();camera.alpha=-Math.PI/2.2;camera.beta=1.04;camera.radius=185}
@@ -444,7 +445,7 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     engine.runRenderLoop(()=>scene.render());const resize=()=>engine.resize();window.addEventListener('resize',resize)
     return()=>{
       try{
-        localStorage.setItem('paw.scene.snapshot.v1',encodeSceneSnapshot({
+        localStorage.setItem('paw.scene.snapshot.v2',encodeSceneSnapshot({
           schemaVersion:2,worldId:'paw-main-world',savedAt:new Date().toISOString(),
           camera:{alpha:camera.alpha,beta:camera.beta,radius:camera.radius,target:{x:camera.target.x,y:camera.target.y,z:camera.target.z}},
           loadedChunkIds:cityStreamer.loadedIds(),
