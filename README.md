@@ -2,7 +2,7 @@
 
 P.A.W. is a local-first, cross-platform agent workspace for Linux, Windows and macOS. The target product combines a Babylon.js spatial control surface with a durable execution runtime, typed workflows, bounded autonomous planning, scoped memory, guarded tools and optional remote workers.
 
-**Current state:** early development. P.A.W. is developed and validated as a native Electron desktop application; there is no Vercel deployment requirement or web-hosted runtime dependency. The desktop branch now has typed graph validation/planning, a bounded-concurrency deterministic DAG executor, pause/resume/cancel controls, durable run records and event history, local workspace snapshots, persistent approval records, a narrow preload bridge, a Groq chat adapter that keeps credentials in Electron's encrypted main-process storage when OS secure storage is available, and the first real-world 3D city blockout. The city includes multi-storey buildings with window facades, paved streets, crosswalks, streetlights, selectable human-shaped agent figures, and a visible underground metro station cutaway. The first executable nodes are local text/JSON transforms only. Named AI-agent travel and station activity remain disconnected from real execution events, so the scene never pretends those agents are doing work. Autonomous model planning, external tool adapters, idempotency, remote workers and SQLite migrations are not implemented. Never enter credentials into the browser preview.
+**Current state:** early development. P.A.W. is developed and validated as a native Electron desktop application; there is no Vercel deployment requirement or web-hosted runtime dependency. The desktop branch now has typed graph validation/planning, a bounded-concurrency deterministic DAG executor, pause/resume/cancel controls, durable run records and event history, local workspace snapshots, persistent approval records, a narrow preload bridge, a Groq chat adapter that keeps credentials in Electron's encrypted main-process storage when OS secure storage is available, and the first real-world 3D city blockout. The city includes multi-storey buildings with window facades, paved streets, crosswalks, streetlights, selectable human-shaped agent figures, and a visible underground metro station cutaway. The first executable nodes are local text/JSON transforms only. Named AI-agent travel and station activity remain disconnected from real execution events, so the scene never pretends those agents are doing work. Autonomous model planning, external tool adapters, idempotency, remote workers and SQLite migrations are not implemented.
 
 ## The living city
 
@@ -18,7 +18,7 @@ The current branch contains a large procedural metropolitan grid, varied seeded 
 - [Architecture notes](docs/ARCHITECTURE.md): core invariants and security boundaries.
 - [Data model](docs/DATA_MODEL.md): durable entities, event envelope and recovery guarantees.
 - [Security model](docs/SECURITY_MODEL.md): threat model, secrets, IPC and capability security.
-- [Pipeline design](docs/PIPELINES.md): PR CI, preview, security, packaging and release.
+- [Pipeline design](docs/PIPELINES.md): PR CI, security, native packaging and release.
 - [Test strategy](docs/TEST_STRATEGY.md): unit through end-to-end, fault injection and release gates.
 - [Release checklist](docs/RELEASE_CHECKLIST.md): tag, artifact, manual acceptance and rollback gates.
 - [Roadmap](docs/ROADMAP.md): staged implementation and acceptance criteria.
@@ -48,4 +48,4 @@ These are an initial operational baseline, not full release certification. See [
 
 ## Security
 
-Never commit API keys, tokens, private keys or credentials. Provider secrets must stay outside renderer code and browser previews. Groq credentials are sent only through the desktop preload bridge and encrypted by Electron `safeStorage`; if OS encryption is unavailable, saving credentials is refused. See [SECURITY.md](SECURITY.md) and the [security model](docs/SECURITY_MODEL.md).
+Never commit API keys, tokens, private keys or credentials. Provider secrets must stay outside renderer code, logs and serialized workspace data. Groq credentials are sent only through the desktop preload bridge and encrypted by Electron `safeStorage`; if OS encryption is unavailable, saving credentials is refused. See [SECURITY.md](SECURITY.md) and the [security model](docs/SECURITY_MODEL.md).
