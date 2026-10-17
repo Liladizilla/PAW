@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { readFile, realpath, stat } from 'node:fs/promises'
+import { mkdir, readFile, realpath, stat } from 'node:fs/promises'
 import { appendHistoryEvent, loadWorkspace, readHistory, saveWorkspace } from './persistence'
 import { clearGroqApiKey, configureGroqApiKey, groqChat, groqProviderStatus } from './providers/groq'
 import { decideApproval, listApprovals, requestApproval } from './approvals'
@@ -41,11 +41,12 @@ async function verifiedAssetPath(uri: string, modelOnly = false): Promise<string
   return targetReal
 }
 async function registerWorkspaceAssetProtocol() {
+  await mkdir(assetRoot(), { recursive: true })
   await protocol.handle('paw-workspace', async request => {
     try {
       const url = new URL(request.url)
       if (url.hostname !== 'assets' || (request.method !== 'GET' && request.method !== 'HEAD')) return new Response('Forbidden', { status: 403 })
-            const uri = decodeURIComponent(url.pathname).replace(/^\/+/, '')
+      const uri = decodeURIComponent(url.pathname).replace(/^\/+/, '')
       const target = await verifiedAssetPath(uri)
       const info = await stat(target)
       if (!info.isFile() || info.size > 100_000_000) return new Response('Not found', { status: 404 })
