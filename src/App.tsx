@@ -35,7 +35,9 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
     if(!canvas.current)return
     const host=createEngineHost(canvas.current)
     const {engine,scene,camera}=host
-    const cityStreamer=createCityChunkStreamer(scene)
+    const worldRoot=new TransformNode('paw-world-origin-root',scene)
+    let worldOrigin:WorldOrigin={x:0,y:0,z:0}
+    const cityStreamer=createCityChunkStreamer(scene,64,2,worldRoot)
     const performanceMonitor=new PerformanceMonitor(120)
     const savedEntityTransforms=new Map<string,{x:number;y:number;z:number}>()
     const savedEntityRecords=new Map<string,SceneEntityRecord>()
@@ -47,11 +49,16 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
       if(saved){
         const snapshot=decodeSceneSnapshot(saved)
         camera.alpha=snapshot.camera.alpha;camera.beta=snapshot.camera.beta;camera.radius=snapshot.camera.radius
-        camera.target.set(snapshot.camera.target.x,snapshot.camera.target.y,snapshot.camera.target.z)
+        worldOrigin={...snapshot.worldOrigin};worldRoot.position.set(-worldOrigin.x,-worldOrigin.y,-worldOrigin.z)
+        const savedTarget=worldToRender(snapshot.camera.target,worldOrigin)
+        camera.target.set(savedTarget.x,savedTarget.y,savedTarget.z)
         for(const entity of snapshot.entities){savedEntityTransforms.set(entity.id,entity.transform.position);savedEntityRecords.set(entity.id,entity)}
         localStorage.setItem('paw.scene.snapshot.v2',JSON.stringify(snapshot));localStorage.removeItem('paw.scene.snapshot.v1')
       }
-    }catch{localStorage.removeItem('paw.scene.snapshot.v1');localStorage.removeItem('paw.scene.snapshot.v2')}
+    }catch{worldOrigin={x:0,y:0,z:0};worldRoot.position.set(0,0,0);localStorage.removeItem('paw.scene.snapshot.v1');localStorage.removeItem('paw.scene.snapshot.v2')}
+    const worldOriginCoordinator=new WorldOriginCoordinator(worldOrigin)
+    worldOriginCoordinator.register(createWorldRootRebaseParticipant('world-root',()=>worldRoot))
+    worldOriginCoordinator.register(createCameraTargetRebaseParticipant('camera-target',()=>camera))
     cameraControl.current={
       focus:(id:string)=>{const agent=agents.find(item=>item.id===id);if(!agent)return;const p=savedEntityTransforms.get(agent.id);const target=worldToRender({x:p?.x??agent.x,y:.8,z:p?.z??agent.z},worldOriginCoordinator.origin);camera.target=new Vector3(target.x,target.y,target.z);camera.radius=13},
       reset:()=>{const target=worldToRender({x:0,y:0,z:0},worldOriginCoordinator.origin);camera.target=new Vector3(target.x,target.y,target.z);camera.alpha=-Math.PI/2.2;camera.beta=1.04;camera.radius=185},
@@ -66,7 +73,9 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
         const imported=await importWorkspaceAsset(picked.asset,uri=>window.paw.resolveWorkspaceAsset(uri),createBabylonAssetLoader(scene))
         if(sceneDisposed){imported.dispose();throw new Error('Scene closed before import completed.')}
         const id='asset-entity:'+picked.asset.id
-        imported.value.position.set(camera.target.x,0,camera.target.z)
+        const worldTarget=renderToWorld({x:camera.target.x,y:0,z:camera.target.z},worldOriginCoordinator.origin)
+        imported.value.position.set(worldTarget.x,worldTarget.y,worldTarget.z)
+        imported.value.parent=worldRoot
         imported.value.name='Imported model '+picked.asset.id.slice(0,8)
         imported.value.metadata={...(imported.value.metadata??{}),entityId:id}
         importedEntityDisposers.push(imported.dispose)
@@ -464,7 +473,11 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
       const m=new StandardMaterial('tube-mat-'+id,scene);m.diffuseColor=new Color3(.24,.31,.35);m.emissiveColor=new Color3(.055,.085,.095);tube.material=m
     }
     scene.onBeforeRenderObservable.add(()=>{
-      cityStreamer.update(camera.target)
+      const currentOrigin=worldOriginCoordinator.origin
+      const worldFocus=renderToWorld({x:camera.target.x,y:camera.target.y,z:camera.target.z},currentOrigin)
+      const rebase=worldOriginCoordinator.rebase(worldFocus)
+      worldOrigin=rebase.current
+      cityStreamer.update(camera.target,worldOrigin)
       simulationClock.advance(engine.getDeltaTime()/1000,(dt)=>{
       cityClock+=dt
       const phase=getTrafficPhase(cityClock)
@@ -543,6 +556,8 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
       previousSelection=current
     })
     scene.onPointerObservable.add(info=>{if(info.type!==1)return;const pick=scene.pick(scene.pointerX,scene.pointerY,m=>typeof m.metadata?.agentId==='string');const id=pick?.pickedMesh?.metadata?.agentId;if(typeof id==='string')onSelect(id)})
+    scene.meshes.forEach(mesh=>{if(!mesh.parent)mesh.parent=worldRoot})
+    scene.lights.forEach(light=>{if(!light.parent)light.parent=worldRoot})
     engine.runRenderLoop(()=>scene.render());const resize=()=>engine.resize();window.addEventListener('resize',resize)
     return()=>{
       try{persistSceneSnapshot()}catch(error){console.warn('P.A.W. could not persist the scene view.',error)}
