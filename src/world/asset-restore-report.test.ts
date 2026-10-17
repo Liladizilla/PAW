@@ -19,6 +19,18 @@ test('bounds visible detail and reports total issue count', () => {
   assert.equal(report, 'Restore warning: missing catalog record: a; missing catalog record: b; missing file: c… (4 issues total)')
 })
 
+test('sanitizes control characters and bounds long loader errors', () => {
+  const report = formatAssetRestoreReport({
+    restoredEntityIds: [],
+    missingCatalog: [],
+    missingFiles: [],
+    failures: [{ entityId: 'model\n\u0000name', reason: 'bad\n' + 'x'.repeat(2000) }]
+  })!
+  assert.ok(!/[\u0000-\u001f\u007f]/.test(report))
+  assert.ok(report.length <= 480)
+  assert.ok(report.startsWith('Restore warning: model name: bad'))
+})
+
 test('returns no status when there are no saved models and no failures', () => {
   assert.equal(formatAssetRestoreReport({restoredEntityIds:[],missingCatalog:[],missingFiles:[],failures:[]}), undefined)
 })
