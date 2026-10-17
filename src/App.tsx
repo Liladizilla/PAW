@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, RotateCcw, Search, Send, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
-import { ArcRotateCamera, Color3, Curve3, DirectionalLight, Engine, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
+import { Color3, Curve3, DirectionalLight, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, StandardMaterial, Vector3 } from '@babylonjs/core'
+import { createEngineHost } from './world/engine-host'
+import { createCityChunkStreamer } from './world/streamed-city'
+import { SpatialIndex } from './world/spatial-index'
+import { decodeSceneSnapshot, encodeSceneSnapshot } from './world/scene-snapshot'
 import { demoGraph } from './runtime/demo-graph'
 import { generateCityLots } from './world/city-layout'
 
@@ -19,14 +23,21 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
   selectedRef.current=selected
   useEffect(()=>{
     if(!canvas.current)return
-    const engine=new Engine(canvas.current,true,{adaptToDeviceRatio:true,stencil:true})
-    const scene=new Scene(engine);scene.clearColor.set(.035,.043,.055,1)
-    const camera=new ArcRotateCamera('camera',-Math.PI/2.2,1.04,185,Vector3.Zero(),scene)
+    const host=createEngineHost(canvas.current)
+    const {engine,scene,camera}=host
+    const cityStreamer=createCityChunkStreamer(scene)
+    try{
+      const saved=localStorage.getItem('paw.scene.snapshot.v1')
+      if(saved){
+        const snapshot=decodeSceneSnapshot(saved)
+        camera.alpha=snapshot.camera.alpha;camera.beta=snapshot.camera.beta;camera.radius=snapshot.camera.radius
+        camera.target.set(snapshot.camera.target.x,snapshot.camera.target.y,snapshot.camera.target.z)
+      }
+    }catch{localStorage.removeItem('paw.scene.snapshot.v1')}
     cameraControl.current={
       focus:(id:string)=>{const agent=agents.find(item=>item.id===id);if(!agent)return;camera.target=new Vector3(agent.x,.8,agent.z);camera.radius=13},
       reset:()=>{camera.target=Vector3.Zero();camera.alpha=-Math.PI/2.2;camera.beta=1.04;camera.radius=185}
     }
-    camera.attachControl(canvas.current,true);camera.lowerRadiusLimit=10;camera.upperRadiusLimit=1400;camera.wheelPrecision=42;camera.panningSensibility=85;camera.inertia=.84
     new HemisphericLight('ambient',new Vector3(.1,1,.1),scene).intensity=.9
     const sun=new DirectionalLight('city-sun',new Vector3(-.45,-1,.35),scene);sun.position=new Vector3(-18,32,-16);sun.intensity=.72
     const material=(name:string,color:string,emissive?:string)=>{
@@ -283,14 +294,12 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       return 'pedestrians-b'
     }
     const isWalkPhase=(phase:TrafficPhase)=>phase==='pedestrians-a'||phase==='pedestrians-b'
+    const crowdSpatialIndex=new SpatialIndex<Pedestrian>(.75)
     const updateCrowd=(dt:number,walkAllowed:boolean)=>{
       // Spatial hash limits collision checks to nearby people instead of comparing every pair.
       const cellSize=.75
-      const cells=new Map<string,Pedestrian[]>()
-      for(const p of pedestrians){
-        const key=Math.floor(p.x/cellSize)+','+Math.floor(p.z/cellSize)
-        const list=cells.get(key)??[];list.push(p);cells.set(key,list)
-      }
+      crowdSpatialIndex.clear()
+      for(const p of pedestrians)crowdSpatialIndex.set(String(pedestrians.indexOf(p)),{x:p.x,z:p.z},p)
       for(const p of pedestrians){
         const start=p.dir>0?-3.55:3.55
         const end=-start
@@ -321,17 +330,15 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
         const step=Math.min(distance,p.speed*dt)
         p.x+=dx/distance*step;p.z+=dz/distance*step
         // Soft collision response: neighbors repel gently, but route direction remains authoritative.
-        const cx=Math.floor(p.x/cellSize),cz=Math.floor(p.z/cellSize)
-        for(let gx=cx-1;gx<=cx+1;gx++)for(let gz=cz-1;gz<=cz+1;gz++){
-          for(const other of cells.get(gx+','+gz)??[]){
-            if(other===p)continue
-            const ox=p.x-other.x,oz=p.z-other.z,dist=Math.hypot(ox,oz)
-            if(dist>0&&dist<.42){
-              const push=(.42-dist)*.08
-              const movingAxis=(p.mode==='destination'||p.mode==='return')?(p.axis==='x'?'z':'x'):p.axis
-              if(movingAxis==='x')p.z+=Math.max(-.035,Math.min(.035,oz/dist*push))
-              else p.x+=Math.max(-.035,Math.min(.035,ox/dist*push))
-            }
+        for(const entry of crowdSpatialIndex.query({x:p.x,z:p.z},.42)){
+          const other=entry.value
+          if(other===p)continue
+          const ox=p.x-other.x,oz=p.z-other.z,dist=Math.hypot(ox,oz)
+          if(dist>0&&dist<.42){
+            const push=(.42-dist)*.08
+            const movingAxis=(p.mode==='destination'||p.mode==='return')?(p.axis==='x'?'z':'x'):p.axis
+            if(movingAxis==='x')p.z+=Math.max(-.035,Math.min(.035,oz/dist*push))
+            else p.x+=Math.max(-.035,Math.min(.035,ox/dist*push))
           }
         }
         // Keep route-following pedestrians inside the clear crosswalk/sidewalk corridor beside the landmark blocks.
@@ -379,6 +386,7 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       const m=new StandardMaterial('tube-mat-'+id,scene);m.diffuseColor=new Color3(.24,.31,.35);m.emissiveColor=new Color3(.055,.085,.095);tube.material=m
     }
     scene.onBeforeRenderObservable.add(()=>{
+      cityStreamer.update(camera.target)
       const frameDelta=Math.min(engine.getDeltaTime()/1000,.1)
       simulationAccumulator=Math.min(simulationAccumulator+frameDelta,simulationStep*5)
       while(simulationAccumulator>=simulationStep){
@@ -436,7 +444,16 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     const simulationStep=1/60
     let simulationAccumulator=0
     engine.runRenderLoop(()=>scene.render());const resize=()=>engine.resize();window.addEventListener('resize',resize)
-    return()=>{cameraControl.current=null;window.removeEventListener('resize',resize);engine.stopRenderLoop();scene.dispose();engine.dispose()}
+    return()=>{
+      try{
+        localStorage.setItem('paw.scene.snapshot.v1',encodeSceneSnapshot({
+          schemaVersion:1,worldId:'paw-main-world',savedAt:new Date().toISOString(),
+          camera:{alpha:camera.alpha,beta:camera.beta,radius:camera.radius,target:{x:camera.target.x,y:camera.target.y,z:camera.target.z}},
+          loadedChunkIds:cityStreamer.loadedIds(),metadata:{engine:'babylonjs',snapshotVersion:1}
+        }))
+      }catch(error){console.warn('P.A.W. could not persist the scene view.',error)}
+      cameraControl.current=null;window.removeEventListener('resize',resize);cityStreamer.dispose();host.dispose()
+    }
   },[onSelect])
   return <canvas ref={canvas} className="world" aria-label="Interactive 3D agent network. Drag to orbit and scroll to zoom."/>
 }
