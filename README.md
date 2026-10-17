@@ -23,6 +23,7 @@ The current branch contains a large procedural metropolitan grid, varied seeded 
 - [Release checklist](docs/RELEASE_CHECKLIST.md): tag, artifact, manual acceptance and rollback gates.
 - [Asset recovery](docs/ASSET_RECOVERY.md): restore imported GLB models and diagnose missing workspace assets.
 - [Roadmap](docs/ROADMAP.md): staged implementation and acceptance criteria.
+- [Installation guide](docs/INSTALLATION.md): release download verification, Linux installation, source builds and troubleshooting.
 
 ## Development
 
