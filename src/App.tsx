@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, RotateCcw, Search, Send, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
-import { ArcRotateCamera, Color3, Curve3, DirectionalLight, Engine, HemisphericLight, MeshBuilder, PBRMaterial, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
+import { ArcRotateCamera, Color3, Curve3, DirectionalLight, Engine, HemisphericLight, Matrix, MeshBuilder, PBRMaterial, Quaternion, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
 import { demoGraph } from './runtime/demo-graph'
 
 type Agent = { id:string; name:string; role:string; color:string; x:number; z:number; state:string; task:string }
@@ -127,6 +127,153 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     }
     const sign=MeshBuilder.CreateBox('metro-sign',{width:2.8,height:.52,depth:.08},scene);sign.position.set(0,2.05,8.3);sign.material=material('metro-sign-mat','#242824','#171d18')
     const stationMark=MeshBuilder.CreateBox('metro-sign-amber',{width:1.7,height:.06,depth:.1},scene);stationMark.position.set(0,2.05,8.23);stationMark.material=material('metro-sign-amber-mat','#d8b57b','#745a30')
+    // Ambient city simulation: civilians are not AI agents and never imply runtime work.
+    // Thin instances keep a dense crowd inexpensive to render on integrated graphics.
+    type Pedestrian={axis:'x'|'z';fixed:number;dir:number;depth:number;lane:number;speed:number;x:number;z:number;mode:'queue'|'approach'|'cross';batch:number}
+    const pedestrianCount=1008
+    const pedestrians:Pedestrian[]=[]
+    const crosswalks:[ 'x'|'z',number ][]=[['x',-3.9],['x',3.9],['z',-3.9],['z',3.9]]
+    const bodyTemplates:Mesh[]=[]
+    const headTemplates:Mesh[]=[]
+    const bodyColors=['#6f7775','#b5a07c','#6d7788']
+    for(let batch=0;batch<3;batch++){
+      const body=MeshBuilder.CreateCylinder('crowd-body-template-'+batch,{height:.72,diameterTop:.3,diameterBottom:.42,tessellation:7},scene)
+      body.material=material('crowd-clothes-'+batch,bodyColors[batch]);body.isVisible=false;body.isPickable=false;bodyTemplates.push(body)
+      const head=MeshBuilder.CreateSphere('crowd-head-template-'+batch,{diameter:.25,segments:6},scene)
+      head.material=material('crowd-skin-'+batch,'#b69b80');head.isVisible=false;head.isPickable=false;headTemplates.push(head)
+    }
+    const bodyBuffers=bodyTemplates.map(()=>new Float32Array(Math.ceil(pedestrianCount/3)*16))
+    const headBuffers=headTemplates.map(()=>new Float32Array(Math.ceil(pedestrianCount/3)*16))
+    const crowdBatches=[0,1,2].map(()=>({people:[] as Pedestrian[],bodies:[] as Matrix[],heads:[] as Matrix[]}))
+    for(let i=0;i<pedestrianCount;i++){
+      const [axis,fixed]=crosswalks[i%4]
+      const dir=(Math.floor(i/4)%2===0)?1:-1
+      const row=Math.floor(i/8)
+      const lane=((Math.floor(i/4)%4)-1.5)*.23+(dir>0?-.22:.22)
+      const depth=(row%15)*.48
+      const start=dir>0?-3.55:3.55
+      const x=axis==='x'?start-dir*depth:fixed+lane
+      const z=axis==='z'?start-dir*depth:fixed+lane
+      const batch=i%3
+      const person:Pedestrian={axis,fixed,dir,depth,lane,speed:1.05+(i%7)*.055,x,z,mode:'queue',batch}
+      pedestrians.push(person);crowdBatches[batch].people.push(person)
+    }
+    const matrixFor=(x:number,y:number,z:number,yaw=0,scale=new Vector3(1,1,1))=>
+      Matrix.Compose(scale,Quaternion.RotationYawPitchRoll(yaw,0,0),new Vector3(x,y,z))
+    for(let batch=0;batch<3;batch++){
+      const group=crowdBatches[batch]
+      const bodyMatrices=new Float32Array(group.people.length*16)
+      const headMatrices=new Float32Array(group.people.length*16)
+      group.people.forEach((person,index)=>{
+        matrixFor(person.x,.48,person.z).copyToArray(bodyMatrices,index*16)
+        matrixFor(person.x,1.0,person.z).copyToArray(headMatrices,index*16)
+      })
+      bodyTemplates[batch].thinInstanceSetBuffer('matrix',bodyMatrices,16,true)
+      headTemplates[batch].thinInstanceSetBuffer('matrix',headMatrices,16,true)
+      bodyTemplates[batch].thinInstanceCount=group.people.length
+      headTemplates[batch].thinInstanceCount=group.people.length
+    }
+    // Four traffic approaches; cars are kinematic and respect the signal plus a following gap.
+    type Vehicle={axis:'x'|'z';lane:number;dir:number;coordinate:number;speed:number;body:Mesh;cabin:Mesh}
+    const vehicles:Vehicle[]=[]
+    const carPaint=['#b8b5a8','#6f827f','#a37b54','#555f69']
+    for(const axis of ['x','z'] as const){
+      for(const lane of [-.82,.82]){
+        for(let n=0;n<4;n++){
+          const dir=n%2===0?1:-1
+          const coordinate=(n<2?-24:18)+(n%2)*7
+          const body=MeshBuilder.CreateBox('traffic-car-'+axis+'-'+lane+'-'+n,{width:axis==='x'?1.55:.82,height:.48,depth:axis==='x'?.82:1.55},scene)
+          body.material=material('traffic-car-paint-'+axis+'-'+lane+'-'+n,carPaint[(n+(axis==='z'?1:0))%carPaint.length])
+          const cabin=MeshBuilder.CreateBox('traffic-cabin-'+axis+'-'+lane+'-'+n,{width:axis==='x'?.82:.55,height:.32,depth:axis==='x'?.55:.82},scene)
+          cabin.material=material('traffic-cabin-glass-'+axis+'-'+lane+'-'+n,'#68736f','#202a28')
+          vehicles.push({axis,lane,dir,coordinate,speed:2.3+(n%2)*.35,body,cabin})
+        }
+      }
+    }
+    // Each corner has a physical signal head. Material emissive states are driven by the signal controller.
+    const signalBulbs:{axis:'x'|'z';red:StandardMaterial;amber:StandardMaterial;green:StandardMaterial}[]=[]
+    const bulbMaterial=(name:string,color:string,on:boolean)=>{
+      const m=new StandardMaterial(name,scene);m.diffuseColor=Color3.FromHexString(color);m.emissiveColor=on?Color3.FromHexString(color).scale(.85):Color3.Black();return m
+    }
+    for(const [cornerX,cornerZ] of [[-4.9,-4.9],[4.9,-4.9],[-4.9,4.9],[4.9,4.9]] as [number,number][]){
+      const pole=MeshBuilder.CreateCylinder('traffic-pole-'+cornerX+'-'+cornerZ,{height:2.2,diameter:.12,tessellation:8},scene)
+      pole.position.set(cornerX,1.1,cornerZ);pole.material=material('traffic-pole-metal-'+cornerX+'-'+cornerZ,'#383b37')
+      const head=MeshBuilder.CreateBox('traffic-signal-head-'+cornerX+'-'+cornerZ,{width:.42,height:1.0,depth:.3},scene)
+      head.position.set(cornerX,2.15,cornerZ);head.material=dark
+      const red=bulbMaterial('signal-red-'+cornerX+'-'+cornerZ,'#e45d51',true)
+      const amber=bulbMaterial('signal-amber-'+cornerX+'-'+cornerZ,'#e0b65f',false)
+      const green=bulbMaterial('signal-green-'+cornerX+'-'+cornerZ,'#71b88a',false)
+      for(const [y,mat,label] of [[2.46,red,'red'],[2.15,amber,'amber'],[1.84,green,'green']] as [number,StandardMaterial,string][]){
+        const bulb=MeshBuilder.CreateSphere('signal-'+label+'-'+cornerX+'-'+cornerZ,{diameter:.2,segments:8},scene)
+        bulb.position.set(cornerX,y,cornerZ-.17);bulb.material=mat
+      }
+      signalBulbs.push({axis:Math.abs(cornerX)>Math.abs(cornerZ)?'x':'z',red,amber,green})
+    }
+    const signalCycle=30
+    let cityClock=0
+    let activeTrafficPhase:'x-green'|'x-amber'|'pedestrians-a'|'z-green'|'z-amber'|'pedestrians-b'='x-green'
+    const getTrafficPhase=(time:number):typeof activeTrafficPhase=>{
+      const t=time%signalCycle
+      if(t<8)return 'x-green'
+      if(t<10)return 'x-amber'
+      if(t<15)return 'pedestrians-a'
+      if(t<23)return 'z-green'
+      if(t<25)return 'z-amber'
+      return 'pedestrians-b'
+    }
+    const isWalkPhase=(phase:typeof activeTrafficPhase)=>phase==='pedestrians-a'||phase==='pedestrians-b'
+    const moveToward=(value:number,target:number,step:number)=>value<target?Math.min(target,value+step):Math.max(target,value-step)
+    const updateCrowd=(dt:number,walkAllowed:boolean)=>{
+      // Spatial hash limits collision checks to nearby people instead of comparing every pair.
+      const cellSize=.75
+      const cells=new Map<string,Pedestrian[]>()
+      for(const p of pedestrians){
+        const key=Math.floor(p.x/cellSize)+','+Math.floor(p.z/cellSize)
+        const list=cells.get(key)??[];list.push(p);cells.set(key,list)
+      }
+      for(const p of pedestrians){
+        const start=p.dir>0?-3.55:3.55
+        const end=-start
+        const target=p.mode==='queue'?start-p.dir*p.depth:p.mode==='approach'?start:end
+        if(p.mode==='cross'&&!walkAllowed)continue
+        const tx=p.axis==='x'?target:p.fixed+p.lane
+        const tz=p.axis==='z'?target:p.fixed+p.lane
+        const dx=tx-p.x,dz=tz-p.z,distance=Math.hypot(dx,dz)
+        if(distance<.12){
+          if(p.mode==='queue')p.mode='approach'
+          else if(p.mode==='approach'){if(walkAllowed)p.mode='cross'}
+          else{p.dir*=-1;p.depth=(p.depth+.48)%7.2;p.mode='queue'}
+          continue
+        }
+        const step=Math.min(distance,p.speed*dt)
+        p.x+=dx/distance*step;p.z+=dz/distance*step
+        // Soft collision response: neighbors repel gently, but route direction remains authoritative.
+        const cx=Math.floor(p.x/cellSize),cz=Math.floor(p.z/cellSize)
+        for(let gx=cx-1;gx<=cx+1;gx++)for(let gz=cz-1;gz<=cz+1;gz++){
+          for(const other of cells.get(gx+','+gz)??[]){
+            if(other===p)continue
+            const ox=p.x-other.x,oz=p.z-other.z,dist=Math.hypot(ox,oz)
+            if(dist>0&&dist<.42){
+              const push=(.42-dist)*.08
+              if(p.axis==='x')p.z+=Math.max(-.035,Math.min(.035,oz/dist*push))
+              else p.x+=Math.max(-.035,Math.min(.035,ox/dist*push))
+            }
+          }
+        }
+      }
+      for(let batch=0;batch<3;batch++){
+        const group=crowdBatches[batch]
+        const bodyData=new Float32Array(group.people.length*16)
+        const headData=new Float32Array(group.people.length*16)
+        group.people.forEach((p,index)=>{
+          const yaw=p.axis==='x'?(p.dir>0?Math.PI/2:-Math.PI/2):(p.dir>0?0:Math.PI)
+          matrixFor(p.x,.48,p.z,yaw).copyToArray(bodyData,index*16)
+          matrixFor(p.x,1.0,p.z,yaw).copyToArray(headData,index*16)
+        })
+        bodyTemplates[batch].thinInstanceSetBuffer('matrix',bodyData,16,true)
+        headTemplates[batch].thinInstanceSetBuffer('matrix',headData,16,true)
+      }
+    }
     const nodeMaterials=new Map<string,PBRMaterial>()
     for(const agent of agents){
       const root=MeshBuilder.CreateCylinder(agent.id,{height:.72,diameterTop:.34,diameterBottom:.46,tessellation:12},scene)
@@ -153,6 +300,45 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       const tube=MeshBuilder.CreateTube('tube-'+id,{path:curve.getPoints(),radius:.065},scene)
       const m=new StandardMaterial('tube-mat-'+id,scene);m.diffuseColor=new Color3(.24,.31,.35);m.emissiveColor=new Color3(.055,.085,.095);tube.material=m
     }
+    scene.onBeforeRenderObservable.add(()=>{
+      const dt=Math.min(engine.getDeltaTime()/1000,.05)
+      cityClock+=dt
+      const phase=getTrafficPhase(cityClock)
+      activeTrafficPhase=phase
+      for(const signal of signalBulbs){
+        const green=(signal.axis==='x'&&phase==='x-green')||(signal.axis==='z'&&phase==='z-green')
+        const amber=(signal.axis==='x'&&phase==='x-amber')||(signal.axis==='z'&&phase==='z-amber')
+        signal.red.emissiveColor=green||amber?Color3.Black():Color3.FromHexString('#e45d51').scale(.85)
+        signal.amber.emissiveColor=amber?Color3.FromHexString('#e0b65f').scale(.85):Color3.Black()
+        signal.green.emissiveColor=green?Color3.FromHexString('#71b88a').scale(.85):Color3.Black()
+      }
+      for(const vehicle of vehicles){
+        const allowed=(vehicle.axis==='x'&&phase==='x-green')||(vehicle.axis==='z'&&phase==='z-green')
+        const current=vehicle.coordinate
+        const stop=vehicle.dir>0?-5.3:5.3
+        const atStop=vehicle.dir>0?current>=stop:current<=stop
+        let blocked=!allowed&&atStop
+        if(allowed||!atStop){
+          const next=current+vehicle.dir*vehicle.speed*dt
+          if(!blocked){
+            for(const other of vehicles){
+              if(other===vehicle||other.axis!==vehicle.axis||other.lane!==vehicle.lane||other.dir!==vehicle.dir)continue
+              const gap=(other.coordinate-current)*vehicle.dir
+              if(gap>0&&gap<2.25){blocked=true;break}
+            }
+          }
+          if(!blocked)vehicle.coordinate=next
+        }
+        if(vehicle.coordinate>35)vehicle.coordinate=-35
+        if(vehicle.coordinate< -35)vehicle.coordinate=35
+        if(vehicle.axis==='x'){
+          vehicle.body.position.set(vehicle.coordinate,.38,vehicle.lane);vehicle.cabin.position.set(vehicle.coordinate,.75,vehicle.lane)
+        }else{
+          vehicle.body.position.set(vehicle.lane,.38,vehicle.coordinate);vehicle.cabin.position.set(vehicle.lane,.75,vehicle.coordinate)
+        }
+      }
+      updateCrowd(dt,isWalkPhase(phase))
+    })
     let previousSelection=''
     scene.onBeforeRenderObservable.add(()=>{
       const current=selectedRef.current
