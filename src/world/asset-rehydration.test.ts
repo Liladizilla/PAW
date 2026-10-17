@@ -23,7 +23,8 @@ test('saved transform, visibility and world-root projection restore without chan
  try{
   worldRoot.position.set(-4096,0,8192)
   applySavedEntityRecord(root,record,worldRoot)
-  scene.render()
+  worldRoot.computeWorldMatrix(true)
+  root.computeWorldMatrix(true)
   assert.equal(root.parent,worldRoot)
   assert.equal(root.isEnabled(),false)
   assert.equal(root.name,record.name)
