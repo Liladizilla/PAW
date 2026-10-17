@@ -441,7 +441,8 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
         const catalog=parsed as AssetCatalogSnapshot
         const assetDriver=createBabylonAssetLoader(scene)
         const plan=planAssetRehydration([...savedEntityRecords.values()],catalog,agents.map(agent=>agent.id))
-        const availability=window.paw?.checkAssetFiles?await window.paw.checkAssetFiles(plan.ready.map(item=>item.asset.uri)):[]
+        const bridge=window.paw as any
+        const availability=bridge.checkAssetFiles?await bridge.checkAssetFiles(plan.ready.map((item:{asset:{uri:string}})=>item.asset.uri)):[ ]
         const unavailable=new Map(availability.filter((item:{uri:string;available:boolean;reason?:string})=>!item.available).map((item:{uri:string;available:boolean;reason?:string})=>[item.uri,item.reason??'missing']))
         for(const missing of plan.missing)console.warn('P.A.W. saved entity references a missing catalog asset: '+missing.entityId+' ('+missing.assetId+')')
         for(const {entity,asset} of plan.ready){
