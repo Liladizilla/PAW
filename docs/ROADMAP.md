@@ -95,6 +95,7 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Register the Babylon GLTF/GLB loader and a privileged, workspace-confined asset resolver.
 - [x] Add a native desktop GLB file picker, copy imported files into the app-owned asset store, load them into the live scene and immediately persist the catalog/entity record; GLTF sidecar import and asset-browser management remain open.
 - [x] Rehydrate saved asset-backed scene entities from the validated local catalog and persist their entity records; asset-browser import UI, editable component authoring, undo/redo and full scene serialization remain open.
+- [x] Parent rehydrated imported assets under the shared world root so saved world-space transforms project correctly after a nonzero-origin restore.
 - [x] Add Babylon NullEngine tests for chunk loading, movement-based eviction, idempotent updates and resource disposal.
 - [x] Add tested world/render coordinate conversions, chunk-snapped origin selection, and a transactional participant coordinator with rollback tests; live scene integration remains open.
 - [x] Add tested transactional adapters for ordinary render positions, camera focus, thin-instance matrix translations with renderer notifications, scalar X/Z coordinates, and coupled traffic coordinates plus vehicle meshes.
