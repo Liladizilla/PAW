@@ -1,4 +1,4 @@
-import { Color3, Mesh, MeshBuilder, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
+import { Color3, Mesh, MeshBuilder, Scene, StandardMaterial } from '@babylonjs/core'
 import { chunksAround, type WorldChunk } from './world-chunks'
 
 type LoadedChunk = { meshes: Mesh[]; materials: StandardMaterial[] }
@@ -24,7 +24,6 @@ export function createCityChunkStreamer(scene: Scene, chunkSize = 64, radius = 2
     const mat = (name: string, color: string) => {
       const m = new StandardMaterial(name, scene)
       m.diffuseColor = Color3.FromHexString(color)
-      m.roughness = .86
       materials.push(m)
       return m
     }
