@@ -58,8 +58,13 @@ Acceptance: real model response works without exposing secrets to renderer; deni
 - [x] Represent the current named agents as selectable human-shaped 3D figures; keep them visually distinct from workflow graph nodes.
 - [x] Add district labels and a camera framing suitable for exploring the initial city block.
 - [ ] Drive agent movement, arrivals, station work and returns from actual runtime/provider events only; never imply successful work with decorative animation.
-- [ ] Implement station routing, walkable paths, intersection right-of-way, collision avoidance and approval/failure destinations.
-- [ ] Add instanced ambient crowds and level-of-detail tiers, with adaptive quality for integrated graphics and modest hardware.
+- [x] Add a procedural ambient pedestrian crowd using Babylon thin instances (1,008 simulated civilians, explicitly distinct from AI agents).
+- [x] Add a timed two-axis traffic controller with physical signal heads, pedestrian scramble phases and vehicles that obey red lights.
+- [x] Add local spatial-hash pedestrian separation and vehicle following gaps to reduce overlaps and traffic pileups.
+- [ ] Upgrade soft crowd separation to tested rigid-body/capsule collision and robust navmesh pathfinding; current movement is kinematic, not a full physics engine.
+- [ ] Connect the four named AI agents to real runtime events and route them to capability stations; ambient pedestrians must never be presented as executing agents.
+- [x] Add instanced ambient crowds and reuse instance buffers each frame.
+- [ ] Profile 1,000+ pedestrian rendering on integrated graphics and add level-of-detail, adaptive population and quality tiers.
 - [ ] Grow the city modularly by adding districts and infrastructure as the product and real workload needs expand; preserve navigation and performance budgets.
 - [ ] Replace sample data with runtime snapshots/events.
 - [ ] Add graph editing, typed ports, connections, selection and multi-select.
