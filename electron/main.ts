@@ -117,6 +117,13 @@ function registerRuntimeIpc() {
       }
       return listener(event, ...args)
     })
+  if (process.env.PAW_DESKTOP_SMOKE === '1') {
+    handle('paw:desktop-smoke:ready', () => {
+      process.stdout.write('PAW_DESKTOP_SMOKE_RENDERER_READY\\n')
+      app.quit()
+      return true
+    })
+  }
   handle('paw:assets:import-glb', async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender)
     if (!owner || owner.isDestroyed()) throw new Error('Asset import requires the active P.A.W. desktop window.')
@@ -332,10 +339,6 @@ function createWindow() {
     }
   })
   if (process.env.PAW_DESKTOP_SMOKE === '1') {
-    window.webContents.once('did-finish-load', () => {
-      process.stdout.write('PAW_DESKTOP_SMOKE_RENDERER_READY\\n')
-      app.quit()
-    })
     window.webContents.once('did-fail-load', (_event, errorCode, description) => {
       process.stderr.write('PAW_DESKTOP_SMOKE_RENDERER_FAILED ' + errorCode + ' ' + description + '\\n')
       app.exit(1)
