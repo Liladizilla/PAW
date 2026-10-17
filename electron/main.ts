@@ -335,7 +335,7 @@ function createWindow() {
     width: 1600, height: 1000, minWidth: 1080, minHeight: 700,
     backgroundColor: '#090b0f', title: 'P.A.W. — Personal Agent Workspace',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true, nodeIntegration: false, sandbox: true
     }
   })
