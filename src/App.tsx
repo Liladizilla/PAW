@@ -540,7 +540,7 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
     engine.runRenderLoop(()=>scene.render());const resize=()=>engine.resize();window.addEventListener('resize',resize)
     return()=>{
       try{persistSceneSnapshot()}catch(error){console.warn('P.A.W. could not persist the scene view.',error)}
-      sceneDisposed=true;cameraControl.current=null;window.removeEventListener('resize',resize);importedEntityDisposers.forEach(dispose=>dispose());cityStreamer.dispose();host.dispose()
+      sceneDisposed=true;onDiagnostics(null);cameraControl.current=null;window.removeEventListener('resize',resize);importedEntityDisposers.forEach(dispose=>dispose());cityStreamer.dispose();host.dispose()
     }
   },[onSelect])
   return <canvas ref={canvas} className="world" aria-label="Interactive 3D agent network. Drag to orbit and scroll to zoom."/>
