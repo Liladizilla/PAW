@@ -12,7 +12,11 @@ test('streamer loads nearby chunks and evicts distant chunk resources after came
     const first = streamer.loadedIds()
     assert.equal(first.length, 9)
     assert.ok(first.every(id => id.startsWith('chunk:')))
-    const firstMeshes = scene.meshes.length\n    const firstStats = streamer.stats()\n    assert.equal(firstStats.loadedChunks, 9)\n    assert.equal(firstStats.meshes, firstMeshes)\n    assert.equal(firstStats.materials, scene.materials.length)
+    const firstMeshes = scene.meshes.length
+    const firstStats = streamer.stats()
+    assert.equal(firstStats.loadedChunks, 9)
+    assert.equal(firstStats.meshes, firstMeshes)
+    assert.equal(firstStats.materials, scene.materials.length)
     assert.ok(firstMeshes > 0)
 
     streamer.update(new Vector3(1024, 0, 1024))
