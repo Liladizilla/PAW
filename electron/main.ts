@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { join } from 'node:path'
+import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron'
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { readFile, stat } from 'node:fs/promises'
 import { appendHistoryEvent, loadWorkspace, readHistory, saveWorkspace } from './persistence'
 import { clearGroqApiKey, configureGroqApiKey, groqChat, groqProviderStatus } from './providers/groq'
 import { decideApproval, listApprovals, requestApproval } from './approvals'
@@ -9,7 +10,47 @@ import { validateGraph, type GraphDefinition } from '../src/runtime/graph'
 import { builtinNodeHandlers } from '../src/runtime/builtins'
 import { parseGraphProposal } from '../src/runtime/proposal'
 
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'paw-workspace',
+  privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
+}])
+
 const WORKSPACE_ID = 'default'
+const SAFE_ASSET_PATH = /^assets\/[a-zA-Z0-9._/-]+$/i
+const SAFE_MODEL_PATH = /\.(?:glb|gltf)$/i
+const ASSET_MIME: Record<string, string> = {
+  '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.bin': 'application/octet-stream',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp'
+}
+function assetRoot(): string { return join(app.getPath('userData'), 'paw', 'assets') }
+function safeAssetPath(uri: string, modelOnly = false): string {
+  if (typeof uri !== 'string' || !SAFE_ASSET_PATH.test(uri) || uri.includes('\\\\') ||
+      uri.split('/').some(part => !part || part === '.' || part === '..') ||
+      (modelOnly && !SAFE_MODEL_PATH.test(uri))) throw new Error('Asset URI must be a safe, workspace-relative assets/ path.')
+  const root = resolve(assetRoot())
+  const target = resolve(root, uri.slice('assets/'.length))
+  const rel = relative(root, target)
+  if (!rel || rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) throw new Error('Asset path escaped the workspace asset directory.')
+  return target
+}
+async function registerWorkspaceAssetProtocol() {
+  await protocol.handle('paw-workspace', async request => {
+    try {
+      const url = new URL(request.url)
+      if (url.hostname !== 'assets' || (request.method !== 'GET' && request.method !== 'HEAD')) return new Response('Forbidden', { status: 403 })
+      const uri = decodeURIComponent(url.pathname).replace(/^\\/+/, '')
+      const target = safeAssetPath(uri)
+      const info = await stat(target)
+      if (!info.isFile() || info.size > 100_000_000) return new Response('Not found', { status: 404 })
+      const body = request.method === 'HEAD' ? null : await readFile(target)
+      return new Response(body, { status: 200, headers: {
+        'Content-Type': ASSET_MIME[extname(target).toLowerCase()] ?? 'application/octet-stream',
+        'Content-Length': String(info.size), 'X-Content-Type-Options': 'nosniff',
+        'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'
+      } })
+    } catch { return new Response('Not found', { status: 404, headers: { 'X-Content-Type-Options': 'nosniff' } }) }
+  })
+}
 const activeExecutions = new Map<string, { control: ExecutionControl; workspaceId: string }>()
 const SAFE_WORKSPACE_ID = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/
 
@@ -52,6 +93,13 @@ async function settleRun(runId: string, workspaceId: string, target: 'succeeded'
 }
 
 function registerRuntimeIpc() {
+  ipcMain.handle('paw:assets:resolve', async (_event, raw: unknown) => {
+    if (typeof raw !== 'string') throw new Error('Asset URI must be text.')
+    const target = safeAssetPath(raw, true)
+    const info = await stat(target)
+    if (!info.isFile() || info.size > 100_000_000) throw new Error('Asset is missing or exceeds the 100 MB import limit.')
+    return { rootUrl: 'paw-workspace://assets/', fileName: raw }
+  })
   ipcMain.handle('paw:runs:list', (_event, workspaceId: unknown) => listRuns(workspaceId === undefined ? 'default' : String(workspaceId)))
   ipcMain.handle('paw:runs:create', (_event, input: unknown) => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Run input must be an object.')
