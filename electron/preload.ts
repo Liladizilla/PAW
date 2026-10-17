@@ -27,7 +27,8 @@ const paw = Object.freeze({
   saveWorkspace: (data: Record<string, unknown>) => ipcRenderer.invoke('paw:workspace:save', data),
   appendHistoryEvent: (event: { type: string; payload?: Record<string, unknown> }) =>
     ipcRenderer.invoke('paw:history:append', event),
-  listHistory: (limit?: number) => ipcRenderer.invoke('paw:history:list', limit)
+  listHistory: (limit?: number) => ipcRenderer.invoke('paw:history:list', limit),
+  ...(process.env.PAW_DESKTOP_SMOKE === '1' ? { desktopSmokeReady: () => ipcRenderer.invoke('paw:desktop-smoke:ready') } : {})
 })
 
 contextBridge.exposeInMainWorld('paw', paw)
