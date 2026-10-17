@@ -24,27 +24,33 @@ export function createCityChunkStreamer(scene: Scene, chunkSize = 64, radius = 2
       materials.push(m)
       return m
     }
-    const asphalt = mat(chunk.id + '-asphalt', '#252824')
-    const pavement = mat(chunk.id + '-pavement', '#55564f')
-    const facadeColors = ['#5b605b', '#706a5f', '#494f4d', '#777368', '#5a6260']
-    const addBox = (name: string, width: number, height: number, depth: number, px: number, py: number, pz: number, material: StandardMaterial) => {
-      const mesh = MeshBuilder.CreateBox(name, { width, height, depth }, scene)
-      mesh.position.set(px, py, pz); mesh.material = material; mesh.isPickable = false; meshes.push(mesh)
-      return mesh
+    try {
+      const asphalt = mat(chunk.id + '-asphalt', '#252824')
+      const pavement = mat(chunk.id + '-pavement', '#55564f')
+      const facadeColors = ['#5b605b', '#706a5f', '#494f4d', '#777368', '#5a6260']
+      const addBox = (name: string, width: number, height: number, depth: number, px: number, py: number, pz: number, material: StandardMaterial) => {
+        const mesh = MeshBuilder.CreateBox(name, { width, height, depth }, scene)
+        mesh.position.set(px, py, pz); mesh.material = material; mesh.isPickable = false; meshes.push(mesh)
+        return mesh
+      }
+      for (const [index, road] of layout.roads.entries()) {
+        addBox(chunk.id + '-road-' + index, road.axis === 'x' ? road.length : road.width, .08, road.axis === 'x' ? road.width : road.length, road.x, .04, road.z, asphalt)
+      }
+      for (const [index, walk] of layout.sidewalks.entries()) {
+        addBox(chunk.id + '-walk-' + index, walk.axis === 'x' ? walk.length : walk.width, .14, walk.axis === 'x' ? walk.width : walk.length, walk.x, .07, walk.z, pavement)
+      }
+      for (const lot of layout.buildings) {
+        const buildingMat = mat(lot.id + '-facade', facadeColors[lot.facadeIndex])
+        const shell = addBox(lot.id, lot.width, lot.height, lot.depth, lot.x, lot.height / 2 + .16, lot.z, buildingMat)
+        shell.metadata = { chunkId: chunk.id, procedural: true, assetKind: 'building' }
+        addBox(lot.id + '-roof', lot.width + .18, .18, lot.depth + .18, lot.x, lot.height + .25, lot.z, pavement)
+      }
+      return { meshes, materials }
+    } catch (error) {
+      meshes.forEach(mesh => mesh.dispose(false, false))
+      materials.forEach(material => material.dispose())
+      throw error
     }
-    for (const [index, road] of layout.roads.entries()) {
-      addBox(chunk.id + '-road-' + index, road.axis === 'x' ? road.length : road.width, .08, road.axis === 'x' ? road.width : road.length, road.x, .04, road.z, asphalt)
-    }
-    for (const [index, walk] of layout.sidewalks.entries()) {
-      addBox(chunk.id + '-walk-' + index, walk.axis === 'x' ? walk.length : walk.width, .14, walk.axis === 'x' ? walk.width : walk.length, walk.x, .07, walk.z, pavement)
-    }
-    for (const lot of layout.buildings) {
-      const buildingMat = mat(lot.id + '-facade', facadeColors[lot.facadeIndex])
-      const shell = addBox(lot.id, lot.width, lot.height, lot.depth, lot.x, lot.height / 2 + .16, lot.z, buildingMat)
-      shell.metadata = { chunkId: chunk.id, procedural: true, assetKind: 'building' }
-      addBox(lot.id + '-roof', lot.width + .18, .18, lot.depth + .18, lot.x, lot.height + .25, lot.z, pavement)
-    }
-    return { meshes, materials }
   }
   const disposeChunk = (chunk: LoadedChunk) => {
     chunk.meshes.forEach(mesh => mesh.dispose(false, false))
