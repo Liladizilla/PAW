@@ -144,7 +144,7 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     }
     const bodyBuffers=bodyTemplates.map(()=>new Float32Array(Math.ceil(pedestrianCount/3)*16))
     const headBuffers=headTemplates.map(()=>new Float32Array(Math.ceil(pedestrianCount/3)*16))
-    const crowdBatches=[0,1,2].map(()=>({people:[] as Pedestrian[],bodies:[] as Matrix[],heads:[] as Matrix[]}))
+    const crowdBatches=[0,1,2].map(()=>({people:[] as Pedestrian[],bodies:[] as Matrix[],heads:[] as Matrix[],bodyData:new Float32Array(0),headData:new Float32Array(0)}))
     for(let i=0;i<pedestrianCount;i++){
       const [axis,fixed]=crosswalks[i%4]
       const dir=(Math.floor(i/4)%2===0)?1:-1
@@ -162,14 +162,13 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       Matrix.Compose(scale,Quaternion.RotationYawPitchRoll(yaw,0,0),new Vector3(x,y,z))
     for(let batch=0;batch<3;batch++){
       const group=crowdBatches[batch]
-      const bodyMatrices=new Float32Array(group.people.length*16)
-      const headMatrices=new Float32Array(group.people.length*16)
+      group.bodyData=new Float32Array(group.people.length*16);group.headData=new Float32Array(group.people.length*16)
       group.people.forEach((person,index)=>{
-        matrixFor(person.x-1000,1000.48,person.z-1000).copyToArray(bodyMatrices,index*16)
-        matrixFor(person.x-1000,1001.0,person.z-1000).copyToArray(headMatrices,index*16)
+        matrixFor(person.x-1000,1000.48,person.z-1000).copyToArray(group.bodyData,index*16)
+        matrixFor(person.x-1000,1001.0,person.z-1000).copyToArray(group.headData,index*16)
       })
-      bodyTemplates[batch].thinInstanceSetBuffer('matrix',bodyMatrices,16,true)
-      headTemplates[batch].thinInstanceSetBuffer('matrix',headMatrices,16,true)
+      bodyTemplates[batch].thinInstanceSetBuffer('matrix',group.bodyData,16,true)
+      headTemplates[batch].thinInstanceSetBuffer('matrix',group.headData,16,true)
       bodyTemplates[batch].thinInstanceCount=group.people.length
       headTemplates[batch].thinInstanceCount=group.people.length
     }
@@ -263,15 +262,14 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       }
       for(let batch=0;batch<3;batch++){
         const group=crowdBatches[batch]
-        const bodyData=new Float32Array(group.people.length*16)
-        const headData=new Float32Array(group.people.length*16)
+        group.bodyData.fill(0);group.headData.fill(0)
         group.people.forEach((p,index)=>{
           const yaw=p.axis==='x'?(p.dir>0?Math.PI/2:-Math.PI/2):(p.dir>0?0:Math.PI)
-          matrixFor(p.x-1000,1000.48,p.z-1000,yaw).copyToArray(bodyData,index*16)
-          matrixFor(p.x-1000,1001.0,p.z-1000,yaw).copyToArray(headData,index*16)
+          matrixFor(p.x-1000,1000.48,p.z-1000,yaw).copyToArray(group.bodyData,index*16)
+          matrixFor(p.x-1000,1001.0,p.z-1000,yaw).copyToArray(group.headData,index*16)
         })
-        bodyTemplates[batch].thinInstanceSetBuffer('matrix',bodyData,16,true)
-        headTemplates[batch].thinInstanceSetBuffer('matrix',headData,16,true)
+        bodyTemplates[batch].thinInstanceBufferUpdated('matrix')
+        headTemplates[batch].thinInstanceBufferUpdated('matrix')
       }
     }
     const nodeMaterials=new Map<string,PBRMaterial>()
