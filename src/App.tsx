@@ -87,16 +87,17 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         let catalog:AssetCatalogSnapshot={schemaVersion:1,revision:0,assets:[]}
         if(currentRaw){const parsed:unknown=JSON.parse(currentRaw);const result=validateAssetCatalog(parsed);if(!result.valid)throw new Error('Saved asset catalog is invalid: '+result.issues.join('; '));catalog=parsed as AssetCatalogSnapshot}
         catalog=upsertAssetCatalog(catalog,picked.asset)
-        let imported: Awaited<ReturnType<typeof importWorkspaceAsset>>
-        try {
-          imported = await importWorkspaceAsset(picked.asset,uri=>window.paw.resolveWorkspaceAsset(uri),createBabylonAssetLoader(scene))
-        } catch (error) {
-          try { await window.paw.discardImportedGlbAsset(picked.asset.uri) }
-          catch (cleanupError) {
-            throw new Error('Model import failed and its copied asset could not be cleaned up: ' + (cleanupError instanceof Error ? cleanupError.message : 'Unknown cleanup error'))
+        const imported = await (async () => {
+          try {
+            return await importWorkspaceAsset(picked.asset,uri=>window.paw.resolveWorkspaceAsset(uri),createBabylonAssetLoader(scene))
+          } catch (error) {
+            try { await window.paw.discardImportedGlbAsset(picked.asset.uri) }
+            catch (cleanupError) {
+              throw new Error('Model import failed and its copied asset could not be cleaned up: ' + (cleanupError instanceof Error ? cleanupError.message : 'Unknown cleanup error'))
+            }
+            throw error
           }
-          throw error
-        }
+        })()
         if(sceneDisposed){
           imported.dispose()
           try { await window.paw.discardImportedGlbAsset(picked.asset.uri) }
