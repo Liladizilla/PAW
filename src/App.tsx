@@ -13,6 +13,8 @@ import { createBabylonAssetLoader } from './world/babylon-asset-loader'
 import type { SceneEntityRecord } from './world/scene-snapshot'
 import { SpatialIndex } from './world/spatial-index'
 import { loadStoredSceneSnapshot, saveStoredSceneSnapshot } from './world/scene-snapshot-store'
+import { SCENE_SNAPSHOT_STORAGE_KEY } from './world/scene-snapshot-store'
+import { commitAssetImportPersistence } from './world/asset-import-persistence'
 import { applySavedEntityRecord, planAssetRehydration } from './world/asset-rehydration'
 import { assetRestorePrerequisiteStatus } from './world/asset-restore-prerequisites'
 import { normalizeAssetAvailabilityResults } from './world/asset-availability-results'
@@ -95,8 +97,20 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         imported.value.metadata={...(imported.value.metadata??{}),entityId:id}
         importedEntityDisposers.push(imported.dispose)
         savedEntityRecords.set(id,{id,name:imported.value.name,assetId:picked.asset.id,transform:{position:{x:imported.value.position.x,y:imported.value.position.y,z:imported.value.position.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true})
-        localStorage.setItem('paw.asset.catalog.v1',JSON.stringify(catalog))
-        persistSceneSnapshot()
+        try {
+          commitAssetImportPersistence(localStorage, {
+            catalogKey: 'paw.asset.catalog.v1',
+            catalogValue: JSON.stringify(catalog),
+            snapshotKey: SCENE_SNAPSHOT_STORAGE_KEY,
+            persistSnapshot: persistSceneSnapshot
+          })
+        } catch (error) {
+          savedEntityRecords.delete(id)
+          const disposerIndex = importedEntityDisposers.lastIndexOf(imported.dispose)
+          if (disposerIndex >= 0) importedEntityDisposers.splice(disposerIndex, 1)
+          imported.dispose()
+          throw new Error('Asset import was rolled back because persistent storage failed: ' + (error instanceof Error ? error.message : 'Unknown storage error'))
+        }
         return 'Imported '+picked.asset.uri.split('/').pop()+' and saved it to the scene.'
       }
     }
