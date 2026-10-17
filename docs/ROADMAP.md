@@ -88,7 +88,7 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Document engine layer ownership, world/entity model, large-world strategy, navigation contracts, persistence boundaries and engine references.
 - [x] Extract Babylon renderer, scene and camera lifecycle into a separately owned engine host module.
 - [x] Add deterministic chunk coordinate/ring planning, tested deterministic city layouts with continuous road seams, a reusable uniform-grid spatial index and tests.
-- [x] Connect chunk planning to deterministic Babylon mesh generation/disposal for outer-city roads, sidewalks and buildings; world-origin strategy remains open.
+- [x] Connect chunk planning to deterministic Babylon mesh generation/disposal for outer-city roads, sidewalks and buildings; integrate the shared world-origin root with the live scene.
 - [x] Add versioned asset catalog metadata and workspace-relative path validation with tests.
 - [x] Persist and validate versioned camera/world-view snapshots locally.
 - [x] Add validated GLTF/GLB import boundary with driver injection, path checks and disposal tests.
@@ -107,7 +107,7 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Register the live world root and camera target with one coordinator; keep streamed chunks, crowd/traffic visuals and imported assets under the root while simulation/entity data remain world-space.
 - [x] Persist world-space camera focus and the active origin in scene snapshot v3.
 - [x] Add automated multi-boundary positive/negative travel, nonzero-origin snapshot round-trip for imported entities, and injected live-scene failure rollback tests.
-- [ ] Verify a desktop-driven save/reload round trip against the actual live Electron/Babylon scene, including restored imported-asset files and transforms.
+- [ ] Verify a desktop-driven save/close/relaunch round trip against the actual live Electron/Babylon scene, including restored imported-asset files and transforms; record a reproducible manual test result.
 - [x] Add a reusable bounded fixed-step clock with catch-up limits and tests.
 - [x] Move the live crowd/traffic loop to the shared fixed-step clock; crowd neighbor queries use the spatial index.
 
@@ -168,4 +168,4 @@ The repository now includes a typed graph validator/planner, a bounded-concurren
 - [x] Add explicit adapters for camera target, thin-instance matrices, traffic simulation coordinates, and origin-aware chunk streaming; pedestrian world/render contract is tested.
 - [x] Integrate root-based origin rebasing across renderer transforms, camera focus, streamed chunks, traffic/crowd visuals, imported assets and world-space snapshot persistence.
 - [x] Verify origin math across repeated positive/negative chunk boundaries, snapshot serialization of nonzero origin and imported-asset world transforms, and exact rollback after injected coordinator failure.
-- [ ] Verify desktop-driven save/reload against the live Electron/Babylon scene and asset catalog before calling the world effectively unbounded.
+- [ ] Verify desktop-driven save/close/relaunch against the live Electron/Babylon scene and asset catalog before calling the world effectively unbounded.
