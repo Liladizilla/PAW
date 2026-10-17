@@ -26,6 +26,8 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+      - name: Launch Electron and wait for renderer readiness
+        run: npm run test:desktop-smoke
   package:
     needs: validate
     strategy:
