@@ -15,6 +15,7 @@ This guide covers recovery of imported GLB models in the native desktop workspac
 - **Desktop runtime unavailable:** open the installed desktop app. The browser preview cannot resolve app-owned files.
 - **Missing asset catalog:** the saved scene refers to models but the local asset catalog is absent. Keep a copy of the workspace data and original GLB files before attempting recovery.
 - **Missing file:** the catalog entry exists, but the referenced app-owned asset file is unavailable. Re-import the original self-contained GLB; do not manually guess or edit an internal asset path.
+- **Several models share one missing file:** the restore report groups affected entity IDs under the same asset path so a single unavailable file does not inflate the warning count. Restore reporting is bounded and ignores availability responses for unrequested paths.
 - **Invalid catalog:** preserve a copy of the workspace data for diagnosis. Do not replace it with a hand-written catalog unless the schema and asset IDs have been verified.
 - **Model load failure:** note the bounded error shown in the footer and keep the original GLB for reproducing the issue.
 
