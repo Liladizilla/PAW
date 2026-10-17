@@ -15,6 +15,7 @@ import { SpatialIndex } from './world/spatial-index'
 import { clearStoredSceneSnapshots, loadStoredSceneSnapshot, saveStoredSceneSnapshot } from './world/scene-snapshot-store'
 import { applySavedEntityRecord, planAssetRehydration } from './world/asset-rehydration'
 import { assetRestorePrerequisiteStatus } from './world/asset-restore-prerequisites'
+import { normalizeAssetAvailabilityResults } from './world/asset-availability-results'
 import { formatAssetRestoreReport } from './world/asset-restore-report'
 import { FixedStepClock } from './world/simulation-clock'
 import { PerformanceMonitor, type PerformanceSnapshot } from './world/performance-monitor'
@@ -451,10 +452,15 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         const assetDriver=createBabylonAssetLoader(scene)
         const plan=planAssetRehydration([...savedEntityRecords.values()],catalog,agents.map(agent=>agent.id))
         const bridge=window.paw as any
-        const availability=bridge.checkAssetFiles?await bridge.checkAssetFiles(plan.ready.map((item:{asset:{uri:string}})=>item.asset.uri)):[]
-        const unavailable=new Map(availability.filter((item:{uri:string;available:boolean;reason?:string})=>!item.available).map((item:{uri:string;available:boolean;reason?:string})=>[item.uri,item.reason??'missing']))
+        const requestedUris=plan.ready.map((item:{asset:{uri:string}})=>item.asset.uri)
+        let availability:ReturnType<typeof normalizeAssetAvailabilityResults>=[]
+        if(bridge.checkAssetFiles){
+          try{availability=normalizeAssetAvailabilityResults(await bridge.checkAssetFiles(requestedUris),requestedUris)}
+          catch(error){console.warn('P.A.W. asset availability check failed; attempting actual model loads.',error)}
+        }
+        const unavailable=new Map(availability.filter(item=>!item.available).map(item=>[item.uri,item.reason??'missing']))
         const missingCatalogMessages=plan.missing.map(missing=>missing.entityId+' → '+missing.assetId)
-        const missingFileMessages=availability.filter((item:{uri:string;available:boolean;reason?:string})=>!item.available).map((item:{uri:string;available:boolean;reason?:string})=>item.uri+' ('+(item.reason??'missing')+')')
+        const missingFileMessages=availability.filter(item=>!item.available).map(item=>item.uri+' ('+(item.reason??'missing')+')')
         const restoreFailures:Array<{entityId:string;reason:string}>=[]
         const restoredEntityIds:string[]=[]
         for(const missing of plan.missing)console.warn('P.A.W. saved entity references a missing catalog asset: '+missing.entityId+' ('+missing.assetId+')')
