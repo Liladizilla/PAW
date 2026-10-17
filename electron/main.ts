@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { mkdir, readFile, realpath, stat } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { copyFile, mkdir, readFile, realpath, stat } from 'node:fs/promises'
 import { appendHistoryEvent, loadWorkspace, readHistory, saveWorkspace } from './persistence'
 import { clearGroqApiKey, configureGroqApiKey, groqChat, groqProviderStatus } from './providers/groq'
 import { decideApproval, listApprovals, requestApproval } from './approvals'
@@ -101,6 +102,33 @@ async function settleRun(runId: string, workspaceId: string, target: 'succeeded'
 }
 
 function registerRuntimeIpc() {
+  ipcMain.handle('paw:assets:import-glb', async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender)
+    if (!owner || owner.isDestroyed()) throw new Error('Asset import requires the active P.A.W. desktop window.')
+    const selection = await dialog.showOpenDialog(owner, {
+      title: 'Import 3D model into P.A.W.',
+      properties: ['openFile'],
+      filters: [{ name: 'Binary glTF model', extensions: ['glb'] }]
+    })
+    if (selection.canceled || selection.filePaths.length !== 1) return { canceled: true as const }
+    const source = selection.filePaths[0]
+    const sourceInfo = await stat(source)
+    if (!sourceInfo.isFile() || sourceInfo.size < 20 || sourceInfo.size > 100_000_000) {
+      throw new Error('GLB file must be between 20 bytes and 100 MB.')
+    }
+    const id = randomUUID()
+    const uri = 'assets/' + id + '.glb'
+    await mkdir(assetRoot(), { recursive: true })
+    const target = safeAssetPath(uri, true)
+    await copyFile(source, target)
+    return {
+      canceled: false as const,
+      asset: {
+        id, kind: 'mesh' as const, uri, format: 'glb',
+        tags: ['imported'], importSettings: { source: 'desktop-file-picker' }
+      }
+    }
+  })
   ipcMain.handle('paw:assets:resolve', async (_event, raw: unknown) => {
     if (typeof raw !== 'string') throw new Error('Asset URI must be text.')
     const target = await verifiedAssetPath(raw, true)
@@ -286,7 +314,8 @@ function createWindow() {
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) void window.loadURL(process.env.ELECTRON_RENDERER_URL)
   else void window.loadFile(join(__dirname, '../renderer/index.html'))
 }
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await registerWorkspaceAssetProtocol()
   registerRuntimeIpc()
   createWindow()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
