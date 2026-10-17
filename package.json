@@ -14,14 +14,17 @@
     "package:linux": "electron-vite build && electron-builder --linux AppImage deb --publish never",
     "package:windows": "electron-vite build && electron-builder --win nsis --publish never",
     "package:mac": "electron-vite build && electron-builder --mac dmg zip --publish never",
-    "test": "tsx --test src/runtime/*.test.ts",
-    "test:watch": "tsx --test --watch src/runtime/*.test.ts"
+    "test": "tsx --test electron/*.test.ts src/runtime/*.test.ts src/world/*.test.ts && node --test scripts/*.test.mjs",
+    "test:watch": "tsx --test --watch electron/*.test.ts src/runtime/*.test.ts src/world/*.test.ts",
+    "test:desktop-smoke": "node scripts/desktop-smoke.mjs",
+    "verify:checksums": "node scripts/verify-checksums.mjs release"
   },
   "dependencies": {
     "@babylonjs/core": "^8.20.0",
     "lucide-react": "^0.468.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "@babylonjs/loaders": "8.56.2"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
