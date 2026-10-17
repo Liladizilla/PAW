@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, RotateCcw, Search, Send, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
-import { ArcRotateCamera, Color3, Curve3, DirectionalLight, Engine, HemisphericLight, Matrix, MeshBuilder, PBRMaterial, Quaternion, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
+import { ArcRotateCamera, Color3, Curve3, DirectionalLight, Engine, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
 import { demoGraph } from './runtime/demo-graph'
 
 type Agent = { id:string; name:string; role:string; color:string; x:number; z:number; state:string; task:string }
@@ -206,9 +206,10 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       }
       signalBulbs.push({axis:cornerX<0?'x':'z',red,amber,green})
     }
+    type TrafficPhase='x-green'|'x-amber'|'pedestrians-a'|'z-green'|'z-amber'|'pedestrians-b'
     const signalCycle=36
     let cityClock=0
-    const getTrafficPhase=(time:number):typeof activeTrafficPhase=>{
+    const getTrafficPhase=(time:number):TrafficPhase=>{
       const t=time%signalCycle
       if(t<8)return 'x-green'
       if(t<10)return 'x-amber'
@@ -217,8 +218,7 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       if(t<28)return 'z-amber'
       return 'pedestrians-b'
     }
-    const isWalkPhase=(phase:typeof activeTrafficPhase)=>phase==='pedestrians-a'||phase==='pedestrians-b'
-    const moveToward=(value:number,target:number,step:number)=>value<target?Math.min(target,value+step):Math.max(target,value-step)
+    const isWalkPhase=(phase:TrafficPhase)=>phase==='pedestrians-a'||phase==='pedestrians-b'
     const updateCrowd=(dt:number,walkAllowed:boolean)=>{
       // Spatial hash limits collision checks to nearby people instead of comparing every pair.
       const cellSize=.75
