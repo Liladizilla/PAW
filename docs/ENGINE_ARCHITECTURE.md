@@ -48,7 +48,7 @@ The first contract implementation lives in `src/world/world-model.ts`: schema-ve
 
 ## Large-world strategy
 
-The initial camera opens above a dense urban core with no visible ground-plane edge. The scene keeps a broad arterial grid and deterministic central lots. `src/world/streamed-city.ts` now generates real Babylon roads, sidewalks and seeded building meshes in camera-targeted chunks beyond the central district, retains a 5×5 candidate ring and disposes chunks outside it. This is an initial streaming implementation, not yet a world-origin/sector system or a full LOD pipeline.
+The initial camera opens above a dense urban core with no visible ground-plane edge. The scene keeps a broad arterial grid and deterministic central lots. `src/world/streamed-city.ts` now generates real Babylon roads, sidewalks and seeded building meshes in camera-targeted chunks beyond the central district, retains a 5×5 candidate ring and disposes chunks outside it. Pure layouts in `src/world/city-chunk-layout.ts` are tested for determinism and shared road-grid coordinates. This is an initial streaming implementation, not yet a world-origin/sector system or a full LOD pipeline.
 
 ## Movement and collision
 
@@ -68,10 +68,10 @@ Civilian movement is a simulation concern, not a rendering side effect. Routes a
 
 - `src/world/world-chunks.ts` defines deterministic chunk coordinates and a nearest-first camera streaming ring. `src/world/streamed-city.ts` consumes that plan to create and dispose real Babylon meshes for seeded outer-district roads, sidewalks and buildings.
 - `src/world/spatial-index.ts` provides a reusable uniform-grid broadphase query for nearby entities and collision candidates.
-- `src/world/asset-catalog.ts` validates versioned asset metadata, workspace-relative paths, import settings and optional bounds. It does not yet import GLTF/GLB or other assets.
+- `src/world/asset-catalog.ts` validates versioned asset metadata, workspace-relative paths, import settings and optional bounds. `src/world/asset-importer.ts` adds a validated GLTF/GLB import boundary with an injected format driver and idempotent disposal; a concrete Babylon GLTF loader plugin and Electron workspace-URL resolver are still required for end-to-end imports.
 - `src/world/simulation-clock.ts` provides bounded fixed-step timing and reports dropped time during stalls.
 
-The engine host now owns Babylon renderer/scene/camera lifecycle outside the React component's setup block. The crowd's local-neighbor broadphase now uses the tested uniform-grid spatial index. A bounded fixed-step accumulator remains in the live simulation loop; migration to the shared `FixedStepClock` is still outstanding. Scene view state is version-validated and persisted locally, while complete editable-scene persistence, durable workspace storage and GLTF/GLB import remain outstanding.
+The engine host owns Babylon renderer/scene/camera lifecycle outside React's setup block. The crowd's local-neighbor broadphase uses the tested uniform-grid spatial index, and live crowd/traffic updates now advance through the shared bounded `FixedStepClock`. Scene snapshots use schema v2, preserve named marker transforms and migrate v1 camera-only saves. Asset imports have a tested validation/driver boundary, but the GLTF plugin, privileged workspace resolver, arbitrary entity editing, durable SQLite world storage and full scene/asset rehydration remain outstanding.
 
 ## Incremental implementation gates
 
