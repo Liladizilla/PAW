@@ -4,6 +4,8 @@ import { loadStoredSceneSnapshot, saveStoredSceneSnapshot, type SnapshotStorage 
 import { validateAssetCatalog, type AssetCatalogSnapshot } from './asset-catalog'
 import { inspectAssetAvailability } from './asset-recovery'
 import type { SceneSnapshot } from './scene-snapshot'
+import { NullEngine, Scene, TransformNode } from '@babylonjs/core'
+import { applySavedEntityRecord, planAssetRehydration } from './asset-rehydration'
 
 class RestartStorage implements SnapshotStorage {
  values = new Map<string,string>()
@@ -39,6 +41,23 @@ test('restart-shaped restore joins world-space entity snapshot to catalog and de
  assert.ok(rawCatalog)
  const decoded=JSON.parse(rawCatalog)
  assert.equal(validateAssetCatalog(decoded).valid,true)
- const availability=await inspectAssetAvailability(decoded,async asset=>asset.uri!=='assets/vehicle.glb')
- assert.deepEqual(availability,[{assetId:'vehicle-model',uri:'assets/vehicle.glb',available:false,reason:'missing'}])
+ const availability=await inspectAssetAvailability(decoded,async asset=>asset.uri==='assets/vehicle.glb')
+ assert.deepEqual(availability,[{assetId:'vehicle-model',uri:'assets/vehicle.glb',available:true}])
+ const plan=planAssetRehydration(restored.entities,decoded)
+ assert.equal(plan.ready.length,1)
+ assert.deepEqual(plan.missing,[])
+ const engine=new NullEngine(),scene=new Scene(engine)
+ const worldRoot=new TransformNode('world-root',scene),modelRoot=new TransformNode('restored-vehicle',scene)
+ try {
+  worldRoot.position.set(-restored.worldOrigin.x,-restored.worldOrigin.y,-restored.worldOrigin.z)
+  applySavedEntityRecord(modelRoot,plan.ready[0].entity,worldRoot)
+  worldRoot.computeWorldMatrix(true);modelRoot.computeWorldMatrix(true)
+  assert.equal(modelRoot.parent,worldRoot)
+  assert.equal(modelRoot.isEnabled(),false,'saved visibility must survive restart')
+  assert.deepEqual(modelRoot.position.asArray(),[16402,1.5,-8174])
+  assert.deepEqual(modelRoot.rotation.asArray(),[0,1.2,0])
+  assert.deepEqual(modelRoot.scaling.asArray(),[1.5,1.5,1.5])
+  assert.equal(modelRoot.name,'Imported vehicle')
+  assert.equal(modelRoot.metadata.assetId,'vehicle-model')
+ } finally { scene.dispose();engine.dispose() }
 })
