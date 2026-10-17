@@ -18,21 +18,30 @@ function verify(platform, directory) {
   return execFileSync(process.execPath, [verifier.pathname, platform, directory], { encoding: 'utf8' })
 }
 
-test('release artifact verifier accepts the complete Linux installer set', async t => {
+test('release artifact verifier accepts Linux native architecture aliases and ignores builder metadata', async t => {
   const directory = await fixture(t, [
-    'P.A.W.-0.1.0-linux-x64.AppImage',
-    'P.A.W.-0.1.0-linux-x64.deb'
+    'P.A.W.-0.1.0-linux-x86_64.AppImage',
+    'P.A.W.-0.1.0-linux-amd64.deb',
+    'P.A.W.-0.1.0-linux-x86_64.AppImage.blockmap',
+    'builder-debug.yml'
   ])
   assert.match(verify('linux', directory), /Verified linux release artifacts/)
 })
 
-test('release artifact verifier accepts Windows and macOS package sets', async t => {
-  const windows = await fixture(t, ['P.A.W.-0.1.0-win-x64.exe'])
+test('release artifact verifier accepts Windows and macOS package sets and ignores auxiliary files', async t => {
+  const windows = await fixture(t, [
+    'P.A.W.-0.1.0-win-x64.exe',
+    'P.A.W.-0.1.0-win-x64.exe.blockmap',
+    'P.A.W.-0.1.0-win-x64.__uninstaller.exe',
+    'builder-debug.yml'
+  ])
   assert.match(verify('win', windows), /Verified win release artifacts/)
 
   const mac = await fixture(t, [
-    'P.A.W.-0.1.0-mac-x64.dmg',
-    'P.A.W.-0.1.0-mac-x64.zip'
+    'P.A.W.-0.1.0-mac-arm64.dmg',
+    'P.A.W.-0.1.0-mac-arm64.zip',
+    'P.A.W.-0.1.0-mac-arm64.dmg.blockmap',
+    'P.A.W.-0.1.0-mac-arm64.zip.blockmap'
   ])
   assert.match(verify('mac', mac), /Verified mac release artifacts/)
 })
@@ -46,7 +55,7 @@ test('release artifact verifier rejects an unexpected version or platform filena
   const directory = await fixture(t, [
     'P.A.W.-0.1.0-linux-x64.AppImage',
     'P.A.W.-0.1.0-linux-x64.deb',
-    'P.A.W.-0.2.0-linux-x64.extra'
+    'P.A.W.-0.2.0-linux-x64.deb'
   ])
   assert.throws(() => verify('linux', directory))
 })

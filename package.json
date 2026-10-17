@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": false,
   "description": "P.A.W. — Personal Agent Workspace",
-  "author": "Liladizilla",
+  "author": {
+    "name": "Charis Chara Ndirangu",
+    "email": "characharis01@gmail.com"
+  },
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
@@ -54,7 +57,8 @@
         "AppImage",
         "deb"
       ],
-      "category": "Development"
+      "category": "Development",
+      "maintainer": "Charis Chara <characharis01@gmail.com>"
     },
     "win": {
       "target": [
