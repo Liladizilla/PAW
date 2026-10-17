@@ -11,7 +11,7 @@ export async function importWorkspaceAsset<T>(asset: AssetRecord, resolve: Asset
   if (!catalog.valid) throw new Error('asset rejected: ' + catalog.issues.join('; '))
   if (!['glb', 'gltf'].includes(asset.format.toLowerCase()) || !['mesh', 'prefab'].includes(asset.kind)) throw new Error('asset importer supports only mesh/prefab GLTF or GLB records')
   const location = await resolve(asset.uri)
-  if (!location || typeof location.rootUrl !== 'string' || typeof location.fileName !== 'string' || !location.fileName.trim() || /^(https?:|file:|javascript:)/i.test(location.fileName) || location.fileName.split(/[\\/]/).includes('..')) throw new Error('workspace resolver returned an unsafe asset location')
+  if (!location || typeof location.rootUrl !== 'string' || !location.rootUrl.startsWith('paw-workspace://') || location.rootUrl.split(/[\\/]/).includes('..') || typeof location.fileName !== 'string' || !location.fileName.trim() || /^(https?:|file:|javascript:)/i.test(location.fileName) || location.fileName.split(/[\\/]/).includes('..')) throw new Error('workspace resolver returned an unsafe asset location')
   const loaded = await load(location, asset)
   let disposed = false
   return { assetId: asset.id, value: loaded.value, dispose: () => { if (!disposed) { disposed = true; loaded.dispose() } } }
