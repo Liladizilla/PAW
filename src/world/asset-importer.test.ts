@@ -13,5 +13,5 @@ test('asset importer rejects unsafe catalog paths before invoking a driver', asy
   await assert.rejects(() => importWorkspaceAsset({ ...asset, uri: '../../secret.glb' }, async uri => ({ rootUrl: '', fileName: uri }), async () => { throw new Error('must not load') }), /asset rejected/)
 })
 test('asset importer rejects an unsafe resolver result', async () => {
-  await assert.rejects(() => importWorkspaceAsset(asset, async () => ({ rootUrl: '', fileName: '../secret.glb' }), async () => { throw new Error('must not load') }), /unsafe asset location/)
+  await assert.rejects(() => importWorkspaceAsset(asset, async () => ({ rootUrl: 'https://evil.example/assets/', fileName: 'station.glb' }), async () => { throw new Error('must not load') }), /unsafe asset location/)
 })
