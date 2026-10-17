@@ -142,8 +142,6 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       const head=MeshBuilder.CreateSphere('crowd-head-template-'+batch,{diameter:.25,segments:6},scene)
       head.material=material('crowd-skin-'+batch,'#b69b80');head.position.set(1000,-1000,1000);head.isPickable=false;headTemplates.push(head)
     }
-    const bodyBuffers=bodyTemplates.map(()=>new Float32Array(Math.ceil(pedestrianCount/3)*16))
-    const headBuffers=headTemplates.map(()=>new Float32Array(Math.ceil(pedestrianCount/3)*16))
     const crowdBatches=[0,1,2].map(()=>({people:[] as Pedestrian[],bodies:[] as Matrix[],heads:[] as Matrix[],bodyData:new Float32Array(0),headData:new Float32Array(0)}))
     for(let i=0;i<pedestrianCount;i++){
       const [axis,fixed]=crosswalks[i%4]
@@ -210,7 +208,6 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     }
     const signalCycle=36
     let cityClock=0
-    let activeTrafficPhase:'x-green'|'x-amber'|'pedestrians-a'|'z-green'|'z-amber'|'pedestrians-b'='x-green'
     const getTrafficPhase=(time:number):typeof activeTrafficPhase=>{
       const t=time%signalCycle
       if(t<8)return 'x-green'
@@ -302,7 +299,6 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       const dt=Math.min(engine.getDeltaTime()/1000,.05)
       cityClock+=dt
       const phase=getTrafficPhase(cityClock)
-      activeTrafficPhase=phase
       for(const signal of signalBulbs){
         const green=(signal.axis==='x'&&phase==='x-green')||(signal.axis==='z'&&phase==='z-green')
         const amber=(signal.axis==='x'&&phase==='x-amber')||(signal.axis==='z'&&phase==='z-amber')
