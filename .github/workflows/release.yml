@@ -55,6 +55,8 @@ jobs:
         run: ${{ matrix.command }}
       - name: Generate SHA-256 checksums
         run: node scripts/write-checksums.mjs release
+      - name: Verify generated checksums
+        run: npm run verify:checksums
       - uses: actions/upload-artifact@v4
         with:
           name: paw-${{ matrix.os }}

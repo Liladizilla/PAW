@@ -16,7 +16,8 @@
     "package:mac": "electron-vite build && electron-builder --mac dmg zip",
     "test": "tsx --test electron/*.test.ts src/runtime/*.test.ts src/world/*.test.ts",
     "test:watch": "tsx --test --watch electron/*.test.ts src/runtime/*.test.ts src/world/*.test.ts",
-    "test:desktop-smoke": "node scripts/desktop-smoke.mjs"
+    "test:desktop-smoke": "node scripts/desktop-smoke.mjs",
+    "verify:checksums": "node scripts/verify-checksums.mjs release"
   },
   "dependencies": {
     "@babylonjs/core": "^8.20.0",
@@ -65,6 +66,7 @@
         "dmg",
         "zip"
       ]
-    }
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   }
 }
