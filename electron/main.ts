@@ -175,14 +175,6 @@ function registerRuntimeIpc() {
     if (typeof value.graphId !== 'string' || (value.workspaceId !== undefined && typeof value.workspaceId !== 'string')) throw new Error('Invalid run input.')
     return createRun({ graphId: value.graphId, workspaceId: value.workspaceId as string | undefined })
   })
-  handle('paw:runs:transition', (_event, input: unknown) => {
-    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Run transition must be an object.')
-    const value = input as { id?: unknown; status?: unknown; reason?: unknown }
-    const statuses = ['queued','running','pause_requested','paused','cancel_requested','cancelled','succeeded','failed','needs_recovery']
-    if (typeof value.id !== 'string' || typeof value.status !== 'string' || !statuses.includes(value.status) ||
-        (value.reason !== undefined && typeof value.reason !== 'string')) throw new Error('Invalid run transition.')
-    return transitionRun(value.id, value.status as import('../src/runtime/run-state').RunStatus, value.reason as string | undefined)
-  })
   handle('paw:runs:recover', (_event, input: unknown) => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Run recovery must be an object.')
     const value = input as { id?: unknown; resolution?: unknown; note?: unknown }
