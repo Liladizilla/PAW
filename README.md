@@ -8,7 +8,7 @@ P.A.W. is a local-first, cross-platform agent workspace for Linux, Windows and m
 
 P.A.W.'s primary workspace is designed as a navigable, realistic 3D city rather than a 2D agent dashboard. Agents enter through an underground metro hub and will travel to real station buildings for research, engineering, review and other registered capabilities. Movement and station activity must be driven by actual runtime events; visual effects must never claim work that did not happen. The initial city is intentionally compact. Future releases can add districts and infrastructure as the product grows, while instancing, level of detail and adaptive rendering protect performance on modest hardware.
 
-The current branch contains the first architectural blockout. Runtime-linked movement, collision-aware crowd navigation, large populations, and staged district expansion remain roadmap work.
+The current branch contains the first architectural blockout plus a procedural ambient-city simulation: 1,008 thin-instanced pedestrian figures, spatial-hash-based soft separation, 16 kinematic vehicles, and a timed traffic-light controller with pedestrian crossing phases. These civilians are explicitly ambient simulation, not AI agents. The traffic and crowd logic is currently kinematic rather than a full rigid-body physics engine; navmesh routing, production-grade collision handling, runtime-linked movement for the named AI agents, performance profiling on integrated graphics, and staged district expansion remain roadmap work.
 
 ## Architecture and engineering plan
 
