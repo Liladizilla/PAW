@@ -1,0 +1,50 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { NullEngine, Scene, Vector3 } from '@babylonjs/core'
+import { createCityChunkStreamer } from './streamed-city'
+
+test('streamer loads nearby chunks and evicts distant chunk resources after camera travel', () => {
+  const engine = new NullEngine()
+  const scene = new Scene(engine)
+  const streamer = createCityChunkStreamer(scene, 64, 1)
+  try {
+    streamer.update(new Vector3(512, 0, 512))
+    const first = streamer.loadedIds()
+    assert.equal(first.length, 9)
+    assert.ok(first.every(id => id.startsWith('chunk:')))
+    const firstMeshes = scene.meshes.length
+    assert.ok(firstMeshes > 0)
+
+    streamer.update(new Vector3(1024, 0, 1024))
+    const second = streamer.loadedIds()
+    assert.equal(second.length, 9)
+    assert.notDeepEqual(second, first)
+    assert.ok(scene.meshes.length > 0)
+    assert.ok(scene.meshes.length <= firstMeshes + 100)
+  } finally {
+    streamer.dispose()
+    assert.deepEqual(streamer.loadedIds(), [])
+    assert.equal(scene.meshes.length, 0)
+    assert.equal(scene.materials.length, 0)
+    scene.dispose()
+    engine.dispose()
+  }
+})
+
+test('streamer update is idempotent when focus remains inside the same chunk ring', () => {
+  const engine = new NullEngine()
+  const scene = new Scene(engine)
+  const streamer = createCityChunkStreamer(scene, 64, 1)
+  try {
+    streamer.update(new Vector3(512, 0, 512))
+    const ids = streamer.loadedIds()
+    const meshCount = scene.meshes.length
+    streamer.update(new Vector3(513, 0, 513))
+    assert.deepEqual(streamer.loadedIds(), ids)
+    assert.equal(scene.meshes.length, meshCount)
+  } finally {
+    streamer.dispose()
+    scene.dispose()
+    engine.dispose()
+  }
+})
