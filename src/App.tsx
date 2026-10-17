@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, RotateCcw, Search, Send, Settings2, ShieldCheck, TerminalSquare, Upload, Workflow } from 'lucide-react'
-import { Color3, Curve3, DirectionalLight, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, StandardMaterial, Vector3 } from '@babylonjs/core'
+import { Color3, Curve3, DirectionalLight, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, StandardMaterial, TransformNode, Vector3 } from '@babylonjs/core'
 import { createEngineHost } from './world/engine-host'
 import { createCityChunkStreamer } from './world/streamed-city'
+import { WorldOriginCoordinator } from './world/world-origin-coordinator'
+import { createCameraTargetRebaseParticipant } from './world/camera-target-rebase-participant'
+import { createWorldRootRebaseParticipant } from './world/world-root-rebase-participant'
+import { renderToWorld, worldToRender, type WorldOrigin } from './world/world-origin'
 import { upsertAssetCatalog, validateAssetCatalog, type AssetCatalogSnapshot } from './world/asset-catalog'
 import { importWorkspaceAsset } from './world/asset-importer'
 import { createBabylonAssetLoader } from './world/babylon-asset-loader'
@@ -37,7 +41,7 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
     const savedEntityRecords=new Map<string,SceneEntityRecord>()
     const importedEntityDisposers:Array<()=>void>=[]
     let sceneDisposed=false
-    const persistSceneSnapshot=()=>localStorage.setItem('paw.scene.snapshot.v2',encodeSceneSnapshot({schemaVersion:3,worldId:'paw-main-world',savedAt:new Date().toISOString(),worldOrigin:{x:0,y:0,z:0},camera:{alpha:camera.alpha,beta:camera.beta,radius:camera.radius,target:{x:camera.target.x,y:camera.target.y,z:camera.target.z}},loadedChunkIds:cityStreamer.loadedIds(),entities:[...agents.map(agent=>{const p=savedEntityTransforms.get(agent.id);return {id:agent.id,name:agent.name,transform:{position:{x:p?.x??agent.x,y:p?.y??.83,z:p?.z??agent.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true}}),...Array.from(savedEntityRecords.values()).filter(entity=>!agents.some(agent=>agent.id===entity.id))],metadata:{engine:'babylonjs',snapshotVersion:3}}))
+    const persistSceneSnapshot=()=>localStorage.setItem('paw.scene.snapshot.v2',encodeSceneSnapshot({schemaVersion:3,worldId:'paw-main-world',savedAt:new Date().toISOString(),worldOrigin:worldOriginCoordinator.origin,camera:{alpha:camera.alpha,beta:camera.beta,radius:camera.radius,target:renderToWorld({x:camera.target.x,y:camera.target.y,z:camera.target.z},worldOriginCoordinator.origin)},loadedChunkIds:cityStreamer.loadedIds(),entities:[...agents.map(agent=>{const p=savedEntityTransforms.get(agent.id);return {id:agent.id,name:agent.name,transform:{position:{x:p?.x??agent.x,y:p?.y??.83,z:p?.z??agent.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true}}),...Array.from(savedEntityRecords.values()).filter(entity=>!agents.some(agent=>agent.id===entity.id))],metadata:{engine:'babylonjs',snapshotVersion:3}}))
     try{
       const saved=localStorage.getItem('paw.scene.snapshot.v2')??localStorage.getItem('paw.scene.snapshot.v1')
       if(saved){
@@ -49,8 +53,8 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
       }
     }catch{localStorage.removeItem('paw.scene.snapshot.v1');localStorage.removeItem('paw.scene.snapshot.v2')}
     cameraControl.current={
-      focus:(id:string)=>{const agent=agents.find(item=>item.id===id);if(!agent)return;const p=savedEntityTransforms.get(agent.id);camera.target=new Vector3(p?.x??agent.x,.8,p?.z??agent.z);camera.radius=13},
-      reset:()=>{camera.target=Vector3.Zero();camera.alpha=-Math.PI/2.2;camera.beta=1.04;camera.radius=185},
+      focus:(id:string)=>{const agent=agents.find(item=>item.id===id);if(!agent)return;const p=savedEntityTransforms.get(agent.id);const target=worldToRender({x:p?.x??agent.x,y:.8,z:p?.z??agent.z},worldOriginCoordinator.origin);camera.target=new Vector3(target.x,target.y,target.z);camera.radius=13},
+      reset:()=>{const target=worldToRender({x:0,y:0,z:0},worldOriginCoordinator.origin);camera.target=new Vector3(target.x,target.y,target.z);camera.alpha=-Math.PI/2.2;camera.beta=1.04;camera.radius=185},
       importModel:async()=>{
         if(!window.paw?.importGlbAsset||!window.paw?.resolveWorkspaceAsset)throw new Error('GLB import requires the installed desktop app.')
         const picked=await window.paw.importGlbAsset()
