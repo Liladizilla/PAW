@@ -88,9 +88,13 @@ test('traffic simulation coordinates stay authoritative while vehicle meshes inh
       assert.deepEqual(body.position.asArray(), originalBody)
       assert.deepEqual(cabin.position.asArray(), originalCabin)
       const bodyWorld = body.getAbsolutePosition()
-      assert.deepEqual(renderToWorld(
+      const bodyInWorld = renderToWorld(
         { x: bodyWorld.x, y: bodyWorld.y, z: bodyWorld.z }, coordinator.origin
-      ), { x: originalCoordinate, y: .38, z: -2.4 })
+      )
+      assert.ok(Math.abs(bodyInWorld.x - originalCoordinate) < 1e-6)
+      // Babylon stores local transforms in Float32-backed matrices, so allow sub-millimeter drift.
+      assert.ok(Math.abs(bodyInWorld.y - .38) < 1e-3)
+      assert.ok(Math.abs(bodyInWorld.z - vehicle.lane) < 1e-3)
     }
   } finally {
     scene.dispose()
