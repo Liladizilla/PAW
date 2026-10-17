@@ -35,3 +35,15 @@ test('thin-instance adapter rejects malformed buffers and non-finite translation
   const buffer = matrix(0, 0, 0); buffer[14] = Number.NaN
   assert.throws(() => createThinInstanceRebaseParticipant('bad', () => [buffer]).prepareRebase({ x: 0, y: 0, z: 0 }, { x: 64, y: 0, z: 0 }), /non-finite/)
 })
+
+
+test('thin-instance adapter notifies renderer after commit and rollback', () => {
+  const buffer = matrix(80, 2, 96)
+  let updates = 0
+  const participant = createThinInstanceRebaseParticipant('crowd-matrices', () => [buffer], () => { updates++ })
+  const stage = participant.prepareRebase({ x: 0, y: 0, z: 0 }, { x: 64, y: 0, z: 64 })
+  assert.equal(updates, 0)
+  stage.commit(); assert.equal(updates, 1)
+  stage.rollback(); assert.equal(updates, 2)
+  assert.deepEqual([buffer[12], buffer[13], buffer[14]], [80, 2, 96])
+})
