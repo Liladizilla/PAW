@@ -1,0 +1,5 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {SpatialIndex} from './spatial-index'
+test('spatial index updates, deletes and queries nearby entries across negative cells',()=>{const i=new SpatialIndex<string>(5);i.set('a',{x:-.5,z:0},'old');i.set('b',{x:3,z:4},'near');i.set('c',{x:9,z:0},'far');i.set('a',{x:1,z:1},'updated');assert.deepEqual(i.query({x:0,z:0},5).map(x=>x.id),['a','b']);assert.equal(i.get('a')?.value,'updated');assert.equal(i.delete('b'),true);assert.equal(i.delete('missing'),false);assert.equal(i.size,2)})
+test('spatial index rejects invalid input and clears cells',()=>{const i=new SpatialIndex<number>();assert.throws(()=>i.set('bad',{x:Infinity,z:0},1));assert.throws(()=>i.query({x:0,z:0},-1));i.set('ok',{x:0,z:0},1);i.clear();assert.equal(i.size,0)})

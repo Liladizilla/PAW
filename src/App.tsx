@@ -1,7 +1,30 @@
-import { useEffect, useRef, useState } from 'react'
-import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, Search, Send, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
-import { ArcRotateCamera, Color3, Engine, HemisphericLight, MeshBuilder, PBRMaterial, Scene, StandardMaterial, Vector3 } from '@babylonjs/core'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, RotateCcw, Search, Send, Settings2, ShieldCheck, TerminalSquare, Upload, Workflow } from 'lucide-react'
+import { Color3, Curve3, DirectionalLight, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, StandardMaterial, TransformNode, Vector3 } from '@babylonjs/core'
+import { createEngineHost } from './world/engine-host'
+import { createCityChunkStreamer } from './world/streamed-city'
+import { WorldOriginCoordinator } from './world/world-origin-coordinator'
+import { createCameraTargetRebaseParticipant } from './world/camera-target-rebase-participant'
+import { createWorldRootRebaseParticipant } from './world/world-root-rebase-participant'
+import { renderToWorld, worldToRender, type WorldOrigin } from './world/world-origin'
+import { upsertAssetCatalog, validateAssetCatalog, type AssetCatalogSnapshot } from './world/asset-catalog'
+import { importWorkspaceAsset } from './world/asset-importer'
+import { createBabylonAssetLoader } from './world/babylon-asset-loader'
+import type { SceneEntityRecord } from './world/scene-snapshot'
+import { SpatialIndex } from './world/spatial-index'
+import { loadStoredSceneSnapshot, saveStoredSceneSnapshot } from './world/scene-snapshot-store'
+import { SCENE_SNAPSHOT_STORAGE_KEY } from './world/scene-snapshot-store'
+import { commitAssetImportPersistence } from './world/asset-import-persistence'
+import { applySavedEntityRecord, planAssetRehydration } from './world/asset-rehydration'
+import { assetRestorePrerequisiteStatus } from './world/asset-restore-prerequisites'
+import { normalizeAssetAvailabilityResults } from './world/asset-availability-results'
+import { formatAssetRestoreReport } from './world/asset-restore-report'
+import { describeUnavailableAssets } from './world/asset-restore-availability'
+import { FixedStepClock } from './world/simulation-clock'
+import { PerformanceMonitor, type PerformanceSnapshot } from './world/performance-monitor'
+import { evaluatePerformanceBudget } from './world/performance-budget'
 import { demoGraph } from './runtime/demo-graph'
+import { generateCityLots } from './world/city-layout'
 
 type Agent = { id:string; name:string; role:string; color:string; x:number; z:number; state:string; task:string }
 type RunRecord = Awaited<ReturnType<typeof window.paw.createRun>>
@@ -12,32 +35,628 @@ const agents:Agent[] = [
   {id:'builder',name:'BUILD ENGINE',role:'Coding agent',color:'#5de0c2',x:4.5,z:-2,state:'IDLE',task:'No task assigned'},
   {id:'validator',name:'VALIDATOR',role:'Testing agent',color:'#ffbd78',x:.5,z:4,state:'IDLE',task:'No task assigned'}
 ]
-function World({onSelect}:{onSelect:(id:string)=>void}) {
+function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStatus}:{onSelect:(id:string)=>void;selected:string;cameraControl:{current:{focus:(id:string)=>void;reset:()=>void;importModel:()=>Promise<string>}|null};onDiagnostics:(snapshot:PerformanceSnapshot|null)=>void;onAssetRestoreStatus:(message:string)=>void}) {
   const canvas=useRef<HTMLCanvasElement>(null)
+  const selectedRef=useRef(selected)
+  selectedRef.current=selected
   useEffect(()=>{
     if(!canvas.current)return
-    const engine=new Engine(canvas.current,true,{adaptToDeviceRatio:true,stencil:true})
-    const scene=new Scene(engine);scene.clearColor.set(.035,.043,.055,1)
-    const camera=new ArcRotateCamera('camera',-Math.PI/2.2,1.08,17,Vector3.Zero(),scene)
-    camera.attachControl(canvas.current,true);camera.lowerRadiusLimit=7;camera.upperRadiusLimit=34;camera.wheelPrecision=45
-    new HemisphericLight('ambient',new Vector3(.1,1,.1),scene).intensity=.9
-    const floor=MeshBuilder.CreateGround('floor',{width:100,height:100},scene)
-    const fm=new StandardMaterial('floor-mat',scene);fm.diffuseColor=new Color3(.045,.055,.07);floor.material=fm
-    for(let i=-10;i<=10;i++){const a=MeshBuilder.CreateLines('grid-a'+i,{points:[new Vector3(i*2,.015,-20),new Vector3(i*2,.015,20)]},scene);const b=MeshBuilder.CreateLines('grid-b'+i,{points:[new Vector3(-20,.015,i*2),new Vector3(20,.015,i*2)]},scene);a.color=b.color=new Color3(.12,.15,.19)}
-    for(const agent of agents){
-      const root=MeshBuilder.CreateBox(agent.id,{width:2.15,height:1.25,depth:1.55},scene);root.position=new Vector3(agent.x,.9,agent.z);root.metadata={agentId:agent.id}
-      const mat=new PBRMaterial(agent.id+'-mat',scene);mat.albedoColor=Color3.FromHexString(agent.color);mat.metallic=.72;mat.roughness=.36;root.material=mat
-      const top=MeshBuilder.CreateBox(agent.id+'-top',{width:1.55,height:.16,depth:1.1},scene);top.position=new Vector3(agent.x,1.62,agent.z);const tm=new StandardMaterial(agent.id+'-tm',scene);tm.diffuseColor=new Color3(.12,.15,.2);tm.emissiveColor=Color3.FromHexString(agent.color).scale(.12);top.material=tm;top.metadata={agentId:agent.id}
-      const core=MeshBuilder.CreateCylinder(agent.id+'-core',{height:.12,diameter:.72},scene);core.position=new Vector3(agent.x,1.74,agent.z);const cm=new StandardMaterial(agent.id+'-cm',scene);cm.emissiveColor=Color3.FromHexString(agent.color).scale(.45);core.material=cm;core.metadata={agentId:agent.id}
+    const host=createEngineHost(canvas.current)
+    const {engine,scene,camera}=host
+    // CI smoke mode exercises the real Electron renderer and Babylon WebGL lifecycle
+    // without constructing the full procedural city, which is intentionally expensive
+    // on software-rendered GitHub-hosted Linux runners.
+    const smokeReady=(window.paw as unknown as {desktopSmokeReady?:()=>Promise<unknown>}).desktopSmokeReady
+    if(smokeReady){
+      const smokeMesh=MeshBuilder.CreateBox('paw-desktop-smoke-mesh',{size:1},scene)
+      smokeMesh.position.set(0,0,0)
+      engine.runRenderLoop(()=>scene.render())
+      scene.executeWhenReady(()=>{void smokeReady()})
+      return ()=>host.dispose()
     }
-    for(const id of ['research','builder','validator']){const a=agents[0],b=agents.find(x=>x.id===id)!;const tube=MeshBuilder.CreateTube('tube-'+id,{path:[new Vector3(a.x,.7,a.z),new Vector3((a.x+b.x)/2,.6,(a.z+b.z)/2),new Vector3(b.x,.9,b.z)],radius:.055},scene);const m=new StandardMaterial('tube-mat-'+id,scene);m.diffuseColor=new Color3(.19,.27,.35);m.emissiveColor=new Color3(.035,.08,.12);tube.material=m}
+    const worldRoot=new TransformNode('paw-world-origin-root',scene)
+    let worldOrigin:WorldOrigin={x:0,y:0,z:0}
+    const cityStreamer=createCityChunkStreamer(scene,64,2,worldRoot)
+    const performanceMonitor=new PerformanceMonitor(120)
+    const savedEntityTransforms=new Map<string,{x:number;y:number;z:number}>()
+    const savedEntityRecords=new Map<string,SceneEntityRecord>()
+    const importedEntityDisposers:Array<()=>void>=[]
+    let sceneDisposed=false
+    const persistSceneSnapshot=()=>saveStoredSceneSnapshot(localStorage,{schemaVersion:3,worldId:'paw-main-world',savedAt:new Date().toISOString(),worldOrigin:worldOriginCoordinator.origin,camera:{alpha:camera.alpha,beta:camera.beta,radius:camera.radius,target:renderToWorld({x:camera.target.x,y:camera.target.y,z:camera.target.z},worldOriginCoordinator.origin)},loadedChunkIds:cityStreamer.loadedIds(),entities:[...agents.map(agent=>{const p=savedEntityTransforms.get(agent.id);return {id:agent.id,name:agent.name,transform:{position:{x:p?.x??agent.x,y:p?.y??.83,z:p?.z??agent.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true}}),...Array.from(savedEntityRecords.values()).filter(entity=>!agents.some(agent=>agent.id===entity.id))],metadata:{engine:'babylonjs',snapshotVersion:3}})
+    try{
+      const snapshot=loadStoredSceneSnapshot(localStorage)
+      if(snapshot){
+        camera.alpha=snapshot.camera.alpha;camera.beta=snapshot.camera.beta;camera.radius=snapshot.camera.radius
+        worldOrigin={...snapshot.worldOrigin};worldRoot.position.set(-worldOrigin.x,-worldOrigin.y,-worldOrigin.z)
+        const savedTarget=worldToRender(snapshot.camera.target,worldOrigin)
+        camera.target.set(savedTarget.x,savedTarget.y,savedTarget.z)
+        for(const entity of snapshot.entities){savedEntityTransforms.set(entity.id,entity.transform.position);savedEntityRecords.set(entity.id,entity)}
+      }
+    }catch(error){worldOrigin={x:0,y:0,z:0};worldRoot.position.set(0,0,0);onAssetRestoreStatus('Restore failed: saved scene data could not be validated. The saved data was preserved for recovery. '+(error instanceof Error?error.message:'Unknown storage error'))}
+    const worldOriginCoordinator=new WorldOriginCoordinator(worldOrigin)
+    worldOriginCoordinator.register(createWorldRootRebaseParticipant('world-root',()=>worldRoot))
+    worldOriginCoordinator.register(createCameraTargetRebaseParticipant('camera-target',()=>camera))
+    cameraControl.current={
+      focus:(id:string)=>{const agent=agents.find(item=>item.id===id);if(!agent)return;const p=savedEntityTransforms.get(agent.id);const target=worldToRender({x:p?.x??agent.x,y:.8,z:p?.z??agent.z},worldOriginCoordinator.origin);camera.target=new Vector3(target.x,target.y,target.z);camera.radius=13},
+      reset:()=>{const target=worldToRender({x:0,y:0,z:0},worldOriginCoordinator.origin);camera.target=new Vector3(target.x,target.y,target.z);camera.alpha=-Math.PI/2.2;camera.beta=1.04;camera.radius=185},
+      importModel:async()=>{
+        if(!window.paw?.importGlbAsset||!window.paw?.resolveWorkspaceAsset)throw new Error('GLB import requires the installed desktop app.')
+        const picked=await window.paw.importGlbAsset()
+        if(picked.canceled)return 'Import cancelled.'
+        let catalog:AssetCatalogSnapshot
+        try {
+          const currentRaw=localStorage.getItem('paw.asset.catalog.v1')
+          catalog={schemaVersion:1,revision:0,assets:[]}
+          if(currentRaw){const parsed:unknown=JSON.parse(currentRaw);const result=validateAssetCatalog(parsed);if(!result.valid)throw new Error('Saved asset catalog is invalid: '+result.issues.join('; '));catalog=parsed as AssetCatalogSnapshot}
+          catalog=upsertAssetCatalog(catalog,picked.asset)
+        } catch (error) {
+          try { await window.paw.discardImportedGlbAsset(picked.asset.uri) }
+          catch (cleanupError) {
+            throw new Error('Asset catalog update failed and the copied model could not be cleaned up: ' + (cleanupError instanceof Error ? cleanupError.message : 'Unknown cleanup error'))
+          }
+          throw error
+        }
+        const imported = await (async () => {
+          try {
+            return await importWorkspaceAsset(picked.asset,uri=>window.paw.resolveWorkspaceAsset(uri),createBabylonAssetLoader(scene))
+          } catch (error) {
+            try { await window.paw.discardImportedGlbAsset(picked.asset.uri) }
+            catch (cleanupError) {
+              throw new Error('Model import failed and its copied asset could not be cleaned up: ' + (cleanupError instanceof Error ? cleanupError.message : 'Unknown cleanup error'))
+            }
+            throw error
+          }
+        })()
+        if(sceneDisposed){
+          imported.dispose()
+          try { await window.paw.discardImportedGlbAsset(picked.asset.uri) }
+          catch (cleanupError) {
+            throw new Error('Scene closed during import and the copied model could not be removed: ' + (cleanupError instanceof Error ? cleanupError.message : 'Unknown cleanup error'))
+          }
+          throw new Error('Scene closed before import completed.')
+        }
+        const id='asset-entity:'+picked.asset.id
+        const worldTarget=renderToWorld({x:camera.target.x,y:0,z:camera.target.z},worldOriginCoordinator.origin)
+        imported.value.position.set(worldTarget.x,worldTarget.y,worldTarget.z)
+        imported.value.parent=worldRoot
+        imported.value.name='Imported model '+picked.asset.id.slice(0,8)
+        imported.value.metadata={...(imported.value.metadata??{}),entityId:id}
+        importedEntityDisposers.push(imported.dispose)
+        savedEntityRecords.set(id,{id,name:imported.value.name,assetId:picked.asset.id,transform:{position:{x:imported.value.position.x,y:imported.value.position.y,z:imported.value.position.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true})
+        try {
+          commitAssetImportPersistence(localStorage, {
+            catalogKey: 'paw.asset.catalog.v1',
+            catalogValue: JSON.stringify(catalog),
+            snapshotKey: SCENE_SNAPSHOT_STORAGE_KEY,
+            persistSnapshot: persistSceneSnapshot
+          })
+        } catch (error) {
+          savedEntityRecords.delete(id)
+          const disposerIndex = importedEntityDisposers.lastIndexOf(imported.dispose)
+          if (disposerIndex >= 0) importedEntityDisposers.splice(disposerIndex, 1)
+          imported.dispose()
+          try { await window.paw.discardImportedGlbAsset(picked.asset.uri) }
+          catch (cleanupError) {
+            throw new Error('Asset import persistence failed and the copied model could not be removed: ' + (cleanupError instanceof Error ? cleanupError.message : 'Unknown cleanup error'))
+          }
+          throw new Error('Asset import was rolled back because persistent storage failed: ' + (error instanceof Error ? error.message : 'Unknown storage error'))
+        }
+        try {
+          await window.paw.commitImportedGlbAsset(picked.asset.uri)
+          return 'Imported '+picked.asset.uri.split('/').pop()+' and saved it to the scene.'
+        } catch (error) {
+          console.warn('P.A.W. saved the imported asset but could not finalize its temporary discard lease.', error)
+          return 'Imported and saved the model, but its temporary cleanup lease could not be finalized. Restart P.A.W. before importing more models.'
+        }
+      }
+    }
+    new HemisphericLight('ambient',new Vector3(.1,1,.1),scene).intensity=.9
+    const sun=new DirectionalLight('city-sun',new Vector3(-.45,-1,.35),scene);sun.position=new Vector3(-18,32,-16);sun.intensity=.72
+    const material=(name:string,color:string,emissive?:string)=>{
+      const mat=new StandardMaterial(name,scene);mat.diffuseColor=Color3.FromHexString(color);if(emissive)mat.emissiveColor=Color3.FromHexString(emissive);return mat
+    }
+    const groundMat=material('city-ground-mat','#343631')
+    const groundTile=(name:string,x:number,z:number,width:number,depth:number)=>{
+      const tile=MeshBuilder.CreateGround(name,{width,height:depth},scene);tile.position.set(x,0,z);tile.material=groundMat
+    }
+    // Leave a physical opening in the street surface so the underground station is visible.
+    groundTile('city-ground-west',-19.6,0,32.8,72)
+    groundTile('city-ground-east',19.6,0,32.8,72)
+    groundTile('city-ground-north',0,-13.85,72,44.3)
+    groundTile('city-ground-south',0,26.65,72,18.7)
+    // A central opening preserves the visible metro cutaway while the world floor extends far past the camera.
+    groundTile('world-ground-west',-1018,0,1964,4000)
+    groundTile('world-ground-east',1018,0,1964,4000)
+    groundTile('world-ground-north',0,-1018,72,1964)
+    groundTile('world-ground-south',0,1018,72,1964)
+    const asphalt=material('street-asphalt','#222522')
+    const pavement=material('pavement','#55554e')
+    const lanePaint=material('lane-paint','#c4b58f')
+    const glass=material('building-glass','#65716e','#202d2b')
+    const warmGlass=material('warm-window-light','#9b8159','#463720')
+    const concrete=material('station-concrete','#55534b')
+    const dark=material('station-dark','#171a19')
+    const road=(name:string,x:number,z:number,width:number,depth:number)=>{
+      const mesh=MeshBuilder.CreateBox(name,{width,height:.09,depth},scene);mesh.position.set(x,.045,z);mesh.material=asphalt
+    }
+    const sidewalk=(name:string,x:number,z:number,width:number,depth:number)=>{
+      const mesh=MeshBuilder.CreateBox(name,{width,height:.16,depth},scene);mesh.position.set(x,.08,z);mesh.material=pavement
+    }
+    // Continuous arterial roads and sidewalks repeat beyond the viewport; the camera never opens on a tiny island.
+    for(let coordinate=-320;coordinate<=320;coordinate+=32){
+      road('world-road-vertical-'+coordinate,coordinate,0,6,2400)
+      road('world-road-horizontal-'+coordinate,0,coordinate,2400,6)
+      sidewalk('world-walk-vertical-west-'+coordinate,coordinate-3.65,0,1.25,2400)
+      sidewalk('world-walk-vertical-east-'+coordinate,coordinate+3.65,0,1.25,2400)
+      sidewalk('world-walk-horizontal-north-'+coordinate,0,coordinate-3.65,2400,1.25)
+      sidewalk('world-walk-horizontal-south-'+coordinate,0,coordinate+3.65,2400,1.25)
+    }
+    // A legible street grid: asphalt, raised pavements, curbs and dashed lane markings.
+    road('north-south-avenue-north',0,-14.1,5.2,39.8);road('north-south-avenue-south',0,26.75,5.2,18.5)
+    road('east-west-avenue',0,0,68,5.2)
+    sidewalk('west-walk-north',-3.35,-14.1,1.25,39.8);sidewalk('west-walk-south',-3.35,26.75,1.25,18.5)
+    sidewalk('east-walk-north',3.35,-14.1,1.25,39.8);sidewalk('east-walk-south',3.35,26.75,1.25,18.5)
+    sidewalk('north-walk',0,-3.35,68,1.25);sidewalk('south-walk',0,3.35,68,1.25)
+    for(let p=-30;p<=30;p+=4){
+      if(Math.abs(p)>5){
+        if(p<6||p>18){const v=MeshBuilder.CreateBox('north-lane-'+p,{width:.12,height:.018,depth:1.8},scene);v.position.set(0,.101,p);v.material=lanePaint}
+        const h=MeshBuilder.CreateBox('east-lane-'+p,{width:1.8,height:.018,depth:.12},scene);h.position.set(p,.101,0);h.material=lanePaint
+      }
+    }
+    // Crosswalks at the central intersection.
+    for(let i=0;i<7;i++){
+      const stripeA=MeshBuilder.CreateBox('crosswalk-n-'+i,{width:.34,height:.025,depth:1.5},scene);stripeA.position.set(-2.1+i*.7,.112,-3.9);stripeA.material=lanePaint
+      const stripeB=MeshBuilder.CreateBox('crosswalk-s-'+i,{width:.34,height:.025,depth:1.5},scene);stripeB.position.set(-2.1+i*.7,.112,3.9);stripeB.material=lanePaint
+      const stripeC=MeshBuilder.CreateBox('crosswalk-e-'+i,{width:1.5,height:.025,depth:.34},scene);stripeC.position.set(3.9,.112,-2.1+i*.7);stripeC.material=lanePaint
+      const stripeD=MeshBuilder.CreateBox('crosswalk-w-'+i,{width:1.5,height:.025,depth:.34},scene);stripeD.position.set(-3.9,.112,-2.1+i*.7);stripeD.material=lanePaint
+    }
+    const makeBuilding=(id:string,x:number,z:number,width:number,depth:number,height:number,facade:string,floors:number)=>{
+      const shell=MeshBuilder.CreateBox(id+'-structure',{width,height,depth},scene);shell.position.set(x,height/2+.16,z);shell.material=material(id+'-facade',facade)
+      const roof=MeshBuilder.CreateBox(id+'-roof',{width:width+.18,height:.22,depth:depth+.18},scene);roof.position.set(x,height+.27,z);roof.material=material(id+'-roof-mat','#45453f')
+      const windowRows=Math.max(2,floors)
+      const cols=Math.max(2,Math.floor(width/1.35))
+      for(let row=0;row<windowRows;row++){
+        const y=.85+row*(height-.9)/windowRows
+        for(let col=0;col<cols;col++){
+          const wx=x-width/2+.7+col*(width-1.1)/Math.max(1,cols-1)
+          const front=MeshBuilder.CreateBox(id+'-front-window-'+row+'-'+col,{width:.48,height:.48,depth:.055},scene)
+          front.position.set(wx,y,z-depth/2-.035);front.material=((row+col)%4===0)?warmGlass:glass
+          const side=MeshBuilder.CreateBox(id+'-side-window-'+row+'-'+col,{width:.055,height:.48,depth:.48},scene)
+          side.position.set(x+width/2+.035,y,z-depth/2+.65+col*(depth-1.3)/Math.max(1,cols-1));side.material=((row+col)%5===0)?warmGlass:glass
+        }
+      }
+      const door=MeshBuilder.CreateBox(id+'-entrance',{width:1.05,height:1.65,depth:.09},scene);door.position.set(x,.98,z-depth/2-.09);door.material=material(id+'-door','#252b29')
+      const canopy=MeshBuilder.CreateBox(id+'-canopy',{width:width*.62,height:.12,depth:.85},scene);canopy.position.set(x,2,z-depth/2-.35);canopy.material=material(id+'-canopy-mat','#8b7959')
+    }
+    // Real architectural massing gives every district a physical address in the city.
+    makeBuilding('research-hall',-14,-14,8.2,8.5,10,'#69675e',6)
+    makeBuilding('engineering-works',14,-14,8.5,8.5,13,'#565b58',8)
+    makeBuilding('review-house',14,14,8.5,8.2,8,'#777166',5)
+    makeBuilding('archive-library',-14,14,8.2,8.5,7,'#625f56',4)
+    makeBuilding('operations-tower',-26,-14,6.8,8.5,17,'#494f4c',10)
+    makeBuilding('data-centre',26,-14,7.2,8.5,11,'#4a514f',6)
+    makeBuilding('workshop-annex',26,14,7.2,8.2,6,'#70695c',3)
+    makeBuilding('planning-office',-26,14,6.8,8.2,9,'#5d625d',5)
+    // Seeded procedural lots add varied towers, slabs, stepped buildings, cylindrical forms and open courtyards.
+    const proceduralLots=generateCityLots(320,4107)
+    const proceduralMaterials=new Map<string,StandardMaterial>()
+    const cityMaterial=(key:string,color:string)=>{
+      const cached=proceduralMaterials.get(key)
+      if(cached)return cached
+      const created=material('procedural-'+key,color);proceduralMaterials.set(key,created);return created
+    }
+    for(const lot of proceduralLots){
+      const y=lot.height/2+.16
+      const facade=cityMaterial('facade-'+lot.facade,lot.facade)
+      const roofMat=cityMaterial('roof','#45453f')
+      if(lot.shape==='cylinder'){
+        const shell=MeshBuilder.CreateCylinder(lot.id+'-shell',{height:lot.height,diameter:Math.min(lot.width,lot.depth),tessellation:12},scene)
+        shell.position.set(lot.x,y,lot.z);shell.material=facade
+      }else if(lot.shape==='courtyard'){
+        const wall=Math.min(1.7,lot.width*.14,lot.depth*.14)
+        const parts:[number,number,number,number,number,number][]=[
+          [lot.width,lot.height,wall,lot.x,y,lot.z-lot.depth/2+wall/2],
+          [lot.width,lot.height,wall,lot.x,y,lot.z+lot.depth/2-wall/2],
+          [wall,lot.height,lot.depth-2*wall,lot.x-lot.width/2+wall/2,y,lot.z],
+          [wall,lot.height,lot.depth-2*wall,lot.x+lot.width/2-wall/2,y,lot.z]
+        ]
+        parts.forEach(([width,height,depth,x,py,z],i)=>{const wallMesh=MeshBuilder.CreateBox(lot.id+'-courtyard-wall-'+i,{width,height,depth},scene);wallMesh.position.set(x,py,z);wallMesh.material=facade})
+        const floor=MeshBuilder.CreateGround(lot.id+'-courtyard-floor',{width:lot.width-wall*2,height:lot.depth-wall*2},scene);floor.position.set(lot.x,lot.height+.17,lot.z);floor.material=cityMaterial('courtyard-floor','#343832')
+      }else{
+        const shell=MeshBuilder.CreateBox(lot.id+'-shell',{width:lot.width,height:lot.height,depth:lot.depth},scene)
+        shell.position.set(lot.x,y,lot.z);shell.material=facade
+        if(lot.shape==='stepped'){
+          const tierHeight=lot.height*.28
+          const tier=MeshBuilder.CreateBox(lot.id+'-upper-tier',{width:lot.width*.68,height:tierHeight,depth:lot.depth*.72},scene)
+          tier.position.set(lot.x,lot.height-tierHeight/2+.16,lot.z);tier.material=facade
+        }
+      }
+      const roof=MeshBuilder.CreateBox(lot.id+'-roof',{width:lot.width+.16,height:.18,depth:lot.depth+.16},scene)
+      roof.position.set(lot.x,lot.height+.27,lot.z);roof.material=roofMat
+      // Fine facade detail is limited to nearby blocks; distant skyline geometry stays cheap.
+      if(Math.hypot(lot.x,lot.z)<88&&(lot.shape==='tower'||lot.shape==='slab')){
+        const rows=Math.min(6,Math.max(2,lot.floors)),cols=Math.min(5,Math.max(2,Math.floor(lot.width/2.2)))
+        for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
+          const wx=lot.x-lot.width/2+.8+col*(lot.width-1.4)/Math.max(1,cols-1)
+          const wy=.8+row*(lot.height-.8)/rows
+          const window=MeshBuilder.CreateBox(lot.id+'-window-'+row+'-'+col,{width:.48,height:.5,depth:.045},scene)
+          window.position.set(wx,wy,lot.z-lot.depth/2-.03);window.material=(row+col)%5===0?warmGlass:glass
+        }
+      }
+    }
+    // Small street furniture makes the scale read as infrastructure, not a graph grid.
+    for(const side of [-1,1]){
+      for(let p=-25;p<=25;p+=10){
+        const pole=MeshBuilder.CreateCylinder('streetlamp-pole-'+side+'-'+p,{height:2.7,diameter:.09,tessellation:8},scene);pole.position.set(side*4.25,1.35,p);pole.material=material('streetlamp-metal-'+side+'-'+p,'#4c4b43')
+        const lamp=MeshBuilder.CreateSphere('streetlamp-head-'+side+'-'+p,{diameter:.28,segments:10},scene);lamp.position.set(side*4.25,2.75,p);lamp.material=material('streetlamp-glow-'+side+'-'+p,'#d2b27a','#6e552d')
+      }
+    }
+    // The central underground metro entrance is a real cutaway-like station, with stairs and a platform below street level.
+    const stationBase=MeshBuilder.CreateBox('metro-platform',{width:5.8,height:.18,depth:7.5},scene);stationBase.position.set(0,-1.65,13.3);stationBase.material=concrete
+    for(const side of [-1,1]){
+      const wall=MeshBuilder.CreateBox('metro-retaining-wall-'+side,{width:.28,height:2.4,depth:7.7},scene);wall.position.set(side*3,-.72,13.3);wall.material=concrete
+    }
+    const backWall=MeshBuilder.CreateBox('metro-back-wall',{width:6.1,height:2.4,depth:.25},scene);backWall.position.set(0,-.72,17);backWall.material=dark
+    const track=MeshBuilder.CreateBox('metro-track-bed',{width:1.2,height:.1,depth:6.6},scene);track.position.set(0,-1.49,13.4);track.material=dark
+    for(const side of [-1,1]){
+      const rail=MeshBuilder.CreateBox('metro-rail-'+side,{width:.07,height:.09,depth:6.4},scene);rail.position.set(side*.35,-1.39,13.4);rail.material=material('metro-rail-metal-'+side,'#aaa18d')
+    }
+    for(let step=0;step<8;step++){
+      const stair=MeshBuilder.CreateBox('metro-stair-'+step,{width:2.4,height:.13,depth:.52},scene)
+      stair.position.set(0,-.04-step*.19,9.9+step*.48);stair.material=material('metro-step-mat-'+step,'#817c70')
+    }
+    const canopy=MeshBuilder.CreateBox('metro-canopy',{width:4.2,height:.22,depth:2.3},scene);canopy.position.set(0,2.5,9.45);canopy.material=material('metro-canopy-mat','#4a4a42')
+    const supports=material('metro-supports','#a08d69')
+    for(const x of [-1.85,1.85]){
+      const post=MeshBuilder.CreateCylinder('metro-canopy-post-'+x,{height:2.5,diameter:.13},scene);post.position.set(x,1.25,9.45);post.material=supports
+    }
+    const sign=MeshBuilder.CreateBox('metro-sign',{width:2.8,height:.52,depth:.08},scene);sign.position.set(0,2.05,8.3);sign.material=material('metro-sign-mat','#242824','#171d18')
+    const stationMark=MeshBuilder.CreateBox('metro-sign-amber',{width:1.7,height:.06,depth:.1},scene);stationMark.position.set(0,2.05,8.23);stationMark.material=material('metro-sign-amber-mat','#d8b57b','#745a30')
+    // Ambient city simulation: civilians are not AI agents and never imply runtime work.
+    // Thin instances keep a dense crowd inexpensive to render on integrated graphics.
+    type Pedestrian={index:number;axis:'x'|'z';fixed:number;dir:number;depth:number;lane:number;side:number;speed:number;x:number;z:number;mode:'queue'|'approach'|'cross'|'destination'|'return';batch:number}
+    const pedestrianCount=1008
+    const hardwareThreads=typeof navigator!=='undefined'?(navigator.hardwareConcurrency||4):4
+    let activePedestrianCount=hardwareThreads>=8?1008:hardwareThreads>=4?720:420
+    const pedestrians:Pedestrian[]=[]
+    const crosswalks:[ 'x'|'z',number ][]=[['x',-3.9],['x',3.9],['z',-3.9],['z',3.9]]
+    const bodyTemplates:Mesh[]=[]
+    const headTemplates:Mesh[]=[]
+    const bodyColors=['#6f7775','#b5a07c','#6d7788']
+    for(let batch=0;batch<3;batch++){
+      const body=MeshBuilder.CreateCylinder('crowd-body-template-'+batch,{height:.72,diameterTop:.3,diameterBottom:.42,tessellation:7},scene)
+      body.material=material('crowd-clothes-'+batch,bodyColors[batch]);body.position.set(1000,-1000,1000);body.isPickable=false;bodyTemplates.push(body)
+      const head=MeshBuilder.CreateSphere('crowd-head-template-'+batch,{diameter:.25,segments:6},scene)
+      head.material=material('crowd-skin-'+batch,'#b69b80');head.position.set(1000,-1000,1000);head.isPickable=false;headTemplates.push(head)
+    }
+    const crowdBatches=[0,1,2].map(()=>({people:[] as Pedestrian[],bodies:[] as Matrix[],heads:[] as Matrix[],bodyData:new Float32Array(0),headData:new Float32Array(0)}))
+    for(let i=0;i<pedestrianCount;i++){
+      const [axis,fixed]=crosswalks[i%4]
+      const dir=(Math.floor(i/4)%2===0)?1:-1
+      const row=Math.floor(i/8)
+      const lane=((row%3)-1)*.38
+      const depth=Math.floor(row/3)*.38
+      const side=fixed>0?1:-1
+      const start=dir>0?-3.55:3.55
+      const queueOffset=fixed+side*(.65+depth)
+      const x=axis==='x'?start:queueOffset
+      const z=axis==='z'?start:queueOffset
+      const batch=i%3
+      const person:Pedestrian={index:i,axis,fixed,dir,depth,lane,side,speed:1.05+(i%7)*.055,x,z,mode:'queue',batch}
+      pedestrians.push(person);crowdBatches[batch].people.push(person)
+    }
+    const matrixFor=(x:number,y:number,z:number,yaw=0,scale=new Vector3(1,1,1))=>
+      Matrix.Compose(scale,Quaternion.RotationYawPitchRoll(yaw,0,0),new Vector3(x,y,z))
+    for(let batch=0;batch<3;batch++){
+      const group=crowdBatches[batch]
+      group.bodyData=new Float32Array(group.people.length*16);group.headData=new Float32Array(group.people.length*16)
+      group.people.forEach((person,index)=>{
+        matrixFor(person.x-1000,1000.48,person.z-1000).copyToArray(group.bodyData,index*16)
+        matrixFor(person.x-1000,1001.0,person.z-1000).copyToArray(group.headData,index*16)
+      })
+      bodyTemplates[batch].thinInstanceSetBuffer('matrix',group.bodyData,16,true)
+      headTemplates[batch].thinInstanceSetBuffer('matrix',group.headData,16,true)
+      const visibleCount=group.people.filter(person=>person.index<activePedestrianCount).length
+      bodyTemplates[batch].thinInstanceCount=visibleCount
+      headTemplates[batch].thinInstanceCount=visibleCount
+    }
+    // Four traffic approaches; cars are kinematic and respect the signal plus a following gap.
+    type Vehicle={axis:'x'|'z';lane:number;dir:number;coordinate:number;speed:number;body:Mesh;cabin:Mesh}
+    const vehicles:Vehicle[]=[]
+    const carPaint=['#b8b5a8','#6f827f','#a37b54','#555f69']
+    for(const axis of ['x','z'] as const){
+      for(const lane of [-.82,.82]){
+        for(let n=0;n<4;n++){
+          const dir=lane<0?1:-1
+          const coordinate=dir>0?-32+n*8:32-n*8
+          const body=MeshBuilder.CreateBox('traffic-car-'+axis+'-'+lane+'-'+n,{width:axis==='x'?1.55:.82,height:.48,depth:axis==='x'?.82:1.55},scene)
+          body.material=material('traffic-car-paint-'+axis+'-'+lane+'-'+n,carPaint[(n+(axis==='z'?1:0))%carPaint.length])
+          const cabin=MeshBuilder.CreateBox('traffic-cabin-'+axis+'-'+lane+'-'+n,{width:axis==='x'?.82:.55,height:.32,depth:axis==='x'?.55:.82},scene)
+          cabin.material=material('traffic-cabin-glass-'+axis+'-'+lane+'-'+n,'#68736f','#202a28')
+          vehicles.push({axis,lane,dir,coordinate,speed:2.3+(n%2)*.35,body,cabin})
+        }
+      }
+    }
+    // Each corner has a physical signal head. Material emissive states are driven by the signal controller.
+    const signalBulbs:{axis:'x'|'z';red:StandardMaterial;amber:StandardMaterial;green:StandardMaterial}[]=[]
+    const bulbMaterial=(name:string,color:string,on:boolean)=>{
+      const m=new StandardMaterial(name,scene);m.diffuseColor=Color3.FromHexString(color);m.emissiveColor=on?Color3.FromHexString(color).scale(.85):Color3.Black();return m
+    }
+    for(const [cornerX,cornerZ] of [[-4.9,-4.9],[4.9,-4.9],[-4.9,4.9],[4.9,4.9]] as [number,number][]){
+      const pole=MeshBuilder.CreateCylinder('traffic-pole-'+cornerX+'-'+cornerZ,{height:2.2,diameter:.12,tessellation:8},scene)
+      pole.position.set(cornerX,1.1,cornerZ);pole.material=material('traffic-pole-metal-'+cornerX+'-'+cornerZ,'#383b37')
+      const head=MeshBuilder.CreateBox('traffic-signal-head-'+cornerX+'-'+cornerZ,{width:.42,height:1.0,depth:.3},scene)
+      head.position.set(cornerX,2.15,cornerZ);head.material=dark
+      const red=bulbMaterial('signal-red-'+cornerX+'-'+cornerZ,'#e45d51',true)
+      const amber=bulbMaterial('signal-amber-'+cornerX+'-'+cornerZ,'#e0b65f',false)
+      const green=bulbMaterial('signal-green-'+cornerX+'-'+cornerZ,'#71b88a',false)
+      for(const [y,mat,label] of [[2.46,red,'red'],[2.15,amber,'amber'],[1.84,green,'green']] as [number,StandardMaterial,string][]){
+        const bulb=MeshBuilder.CreateSphere('signal-'+label+'-'+cornerX+'-'+cornerZ,{diameter:.2,segments:8},scene)
+        bulb.position.set(cornerX,y,cornerZ-.17);bulb.material=mat
+      }
+      signalBulbs.push({axis:cornerX<0?'x':'z',red,amber,green})
+    }
+    type TrafficPhase='x-green'|'x-amber'|'pedestrians-a'|'z-green'|'z-amber'|'pedestrians-b'
+    const signalCycle=36
+    let cityClock=0
+    const getTrafficPhase=(time:number):TrafficPhase=>{
+      const t=time%signalCycle
+      if(t<8)return 'x-green'
+      if(t<10)return 'x-amber'
+      if(t<18)return 'pedestrians-a'
+      if(t<26)return 'z-green'
+      if(t<28)return 'z-amber'
+      return 'pedestrians-b'
+    }
+    const isWalkPhase=(phase:TrafficPhase)=>phase==='pedestrians-a'||phase==='pedestrians-b'
+    const crowdSpatialIndex=new SpatialIndex<Pedestrian>(.75)
+    const simulationClock=new FixedStepClock(1/60,.1,5)
+    const updateCrowd=(dt:number,walkAllowed:boolean)=>{
+      // Spatial hash limits collision checks to nearby people instead of comparing every pair.
+      crowdSpatialIndex.clear()
+      pedestrians.forEach(p=>{if(p.index<activePedestrianCount)crowdSpatialIndex.set(String(p.index),{x:p.x,z:p.z},p)})
+      for(const p of pedestrians){
+        if(p.index>=activePedestrianCount)continue
+        const start=p.dir>0?-3.55:3.55
+        const end=-start
+        const queueOffset=p.fixed+p.side*(.65+p.depth)
+        let tx:number,tz:number
+        if(p.mode==='queue'){
+          tx=p.axis==='x'?start:queueOffset;tz=p.axis==='z'?start:queueOffset
+        }else if(p.mode==='approach'){
+          tx=p.axis==='x'?start:p.fixed+p.lane;tz=p.axis==='z'?start:p.fixed+p.lane
+        }else if(p.mode==='cross'){
+          tx=p.axis==='x'?end:p.fixed+p.lane;tz=p.axis==='z'?end:p.fixed+p.lane
+          if(!walkAllowed)continue
+        }else if(p.mode==='destination'){
+          tx=p.axis==='x'?end:p.fixed+p.side*(p.depth+7)
+          tz=p.axis==='z'?end:p.fixed+p.side*(p.depth+7)
+        }else{
+          tx=p.axis==='x'?end:queueOffset;tz=p.axis==='z'?end:queueOffset
+        }
+        const dx=tx-p.x,dz=tz-p.z,distance=Math.hypot(dx,dz)
+        if(distance<.12){
+          if(p.mode==='queue')p.mode='approach'
+          else if(p.mode==='approach'){if(walkAllowed)p.mode='cross'}
+          else if(p.mode==='cross')p.mode='destination'
+          else if(p.mode==='destination')p.mode='return'
+          else{p.dir*=-1;p.depth=(p.depth+.48)%7.2;p.mode='queue'}
+          continue
+        }
+        const step=Math.min(distance,p.speed*dt)
+        p.x+=dx/distance*step;p.z+=dz/distance*step
+        // Soft collision response: neighbors repel gently, but route direction remains authoritative.
+        for(const entry of crowdSpatialIndex.query({x:p.x,z:p.z},.42)){
+          const other=entry.value
+          if(other===p)continue
+          const ox=p.x-other.x,oz=p.z-other.z,dist=Math.hypot(ox,oz)
+          if(dist>0&&dist<.42){
+            const push=(.42-dist)*.08
+            const movingAxis=(p.mode==='destination'||p.mode==='return')?(p.axis==='x'?'z':'x'):p.axis
+            if(movingAxis==='x')p.z+=Math.max(-.035,Math.min(.035,oz/dist*push))
+            else p.x+=Math.max(-.035,Math.min(.035,ox/dist*push))
+          }
+        }
+        // Keep route-following pedestrians inside the clear crosswalk/sidewalk corridor beside the landmark blocks.
+        if(p.axis==='x'&&(p.mode==='destination'||p.mode==='return'))p.x=Math.max(-6,Math.min(6,p.x))
+        if(p.axis==='z'&&(p.mode==='destination'||p.mode==='return'))p.z=Math.max(-6,Math.min(6,p.z))
+      }
+      for(let batch=0;batch<3;batch++){
+        const group=crowdBatches[batch]
+        group.bodyData.fill(0);group.headData.fill(0)
+        group.people.forEach((p,index)=>{
+          if(p.index>=activePedestrianCount)return
+          const movingAxis=(p.mode==='destination'||p.mode==='return')?(p.axis==='x'?'z':'x'):p.axis
+          const facing=(p.mode==='destination')?p.side:(p.mode==='return')?-p.side:p.dir
+          const yaw=movingAxis==='x'?(facing>0?Math.PI/2:-Math.PI/2):(facing>0?0:Math.PI)
+          matrixFor(p.x-1000,1000.48,p.z-1000,yaw).copyToArray(group.bodyData,index*16)
+          matrixFor(p.x-1000,1001.0,p.z-1000,yaw).copyToArray(group.headData,index*16)
+        })
+        const visibleCount=group.people.filter(person=>person.index<activePedestrianCount).length
+        bodyTemplates[batch].thinInstanceCount=visibleCount
+        headTemplates[batch].thinInstanceCount=visibleCount
+        bodyTemplates[batch].thinInstanceBufferUpdated('matrix')
+        headTemplates[batch].thinInstanceBufferUpdated('matrix')
+      }
+    }
+    const nodeMaterials=new Map<string,PBRMaterial>()
+    for(const agent of agents){
+      const savedPosition=savedEntityTransforms.get(agent.id)
+      const agentX=savedPosition?.x??agent.x,agentZ=savedPosition?.z??agent.z
+      const root=MeshBuilder.CreateCylinder(agent.id,{height:.72,diameterTop:.34,diameterBottom:.46,tessellation:12},scene)
+      root.position.set(agentX,.83,agentZ);root.material=new PBRMaterial(agent.id+'-body-mat',scene)
+      const bodyMat=root.material as PBRMaterial;bodyMat.albedoColor=Color3.FromHexString(agent.color);bodyMat.metallic=.08;bodyMat.roughness=.72;nodeMaterials.set(agent.id,bodyMat);root.metadata={agentId:agent.id}
+      const head=MeshBuilder.CreateSphere(agent.id+'-head',{diameter:.3,segments:12},scene);head.position.set(agentX,1.36,agentZ);head.material=material(agent.id+'-head-mat','#bda78c');head.metadata={agentId:agent.id}
+      for(const side of [-1,1]){
+        const arm=MeshBuilder.CreateCylinder(agent.id+'-arm-'+side,{height:.52,diameter:.12,tessellation:8},scene)
+        arm.position.set(agentX+side*.27,.86,agentZ);arm.rotation.z=side*.13;arm.material=bodyMat;arm.metadata={agentId:agent.id}
+        const leg=MeshBuilder.CreateCylinder(agent.id+'-leg-'+side,{height:.48,diameter:.14,tessellation:8},scene)
+        leg.position.set(agentX+side*.13,.34,agentZ);leg.material=material(agent.id+'-leg-mat-'+side,'#343632');leg.metadata={agentId:agent.id}
+      }
+      const badge=MeshBuilder.CreateBox(agent.id+'-badge',{width:.18,height:.1,depth:.06},scene);badge.position.set(agentX,1.03,agentZ-.22);badge.material=material(agent.id+'-badge-mat',agent.color,agent.color);badge.metadata={agentId:agent.id}
+    }
+    // Rehydrate saved user entities from a validated local asset catalog.
+    // Named AI agents remain app-owned; imported assets cannot impersonate runtime agents.
+    void (async()=>{
+      try{
+        const rawCatalog=localStorage.getItem('paw.asset.catalog.v1')
+        const savedAssetEntities=[...savedEntityRecords.values()].filter(entity=>!!entity.assetId&&!agents.some(agent=>agent.id===entity.id))
+        const prerequisiteStatus=assetRestorePrerequisiteStatus({savedAssetCount:savedAssetEntities.length,hasCatalog:!!rawCatalog,hasWorkspaceResolver:!!window.paw?.resolveWorkspaceAsset})
+        if(prerequisiteStatus){onAssetRestoreStatus(prerequisiteStatus);return}
+        if(!rawCatalog)return
+        const parsed:unknown=JSON.parse(rawCatalog)
+        const catalogValidation=validateAssetCatalog(parsed)
+        if(!catalogValidation.valid){
+          onAssetRestoreStatus('Restore failed: invalid asset catalog. '+catalogValidation.issues.slice(0,3).join('; '))
+          return
+        }
+        const catalog=parsed as AssetCatalogSnapshot
+        const assetDriver=createBabylonAssetLoader(scene)
+        const plan=planAssetRehydration([...savedEntityRecords.values()],catalog,agents.map(agent=>agent.id))
+        const bridge=window.paw as any
+        const requestedUris=plan.ready.map((item:{asset:{uri:string}})=>item.asset.uri)
+        let availability:ReturnType<typeof normalizeAssetAvailabilityResults>=[]
+        if(bridge.checkAssetFiles){
+          try{availability=normalizeAssetAvailabilityResults(await bridge.checkAssetFiles(requestedUris),requestedUris)}
+          catch(error){console.warn('P.A.W. asset availability check failed; attempting actual model loads.',error)}
+        }
+        const unavailable=new Map(availability.filter(item=>!item.available).map(item=>[item.uri,item.reason??'missing']))
+        const missingCatalogMessages=plan.missing.map(missing=>missing.entityId+' → '+missing.assetId)
+        const missingFileMessages=describeUnavailableAssets(availability,plan.ready.map(({entity,asset})=>({entityId:entity.id,uri:asset.uri})))
+        const restoreFailures:Array<{entityId:string;reason:string}>=[]
+        const restoredEntityIds:string[]=[]
+        for(const missing of plan.missing)console.warn('P.A.W. saved entity references a missing catalog asset: '+missing.entityId+' ('+missing.assetId+')')
+        for(const {entity,asset} of plan.ready){
+          if(sceneDisposed)return
+          const unavailableReason=unavailable.get(asset.uri)
+          if(unavailableReason){console.warn('P.A.W. cannot restore '+entity.id+': asset file '+unavailableReason+' ('+asset.uri+')');continue}
+          try{
+            const imported=await importWorkspaceAsset(asset,uri=>window.paw.resolveWorkspaceAsset(uri),assetDriver)
+            if(sceneDisposed){imported.dispose();return}
+            applySavedEntityRecord(imported.value,entity,worldRoot)
+            importedEntityDisposers.push(imported.dispose)
+            restoredEntityIds.push(entity.id)
+          }catch(error){
+            const reason=error instanceof Error?error.message:'unknown model load error'
+            restoreFailures.push({entityId:entity.id,reason})
+            console.warn('P.A.W. skipped unavailable saved asset entity: '+entity.id,error)
+          }
+        }
+        const restoreReport=formatAssetRestoreReport({restoredEntityIds,missingCatalog:missingCatalogMessages,missingFiles:missingFileMessages,failures:restoreFailures})
+        if(restoreReport)onAssetRestoreStatus(restoreReport)
+      }catch(error){onAssetRestoreStatus('Restore failed: '+(error instanceof Error?error.message:'unknown asset recovery error'));console.warn('P.A.W. saved asset catalog is invalid; asset entities were not rehydrated.',error)}
+    })()
+    for(const id of ['research','builder','validator']){
+      const a=agents[0],b=agents.find(x=>x.id===id)!
+      const curve=Curve3.CreateCatmullRomSpline([
+        new Vector3(a.x,.72,a.z),
+        new Vector3(a.x+(b.x-a.x)*.28,.46,a.z+(b.z-a.z)*.18),
+        new Vector3((a.x+b.x)/2,.34,(a.z+b.z)/2),
+        new Vector3(a.x+(b.x-a.x)*.82,.46,a.z+(b.z-a.z)*.84),
+        new Vector3(b.x,.72,b.z)
+      ],24,false)
+      const tube=MeshBuilder.CreateTube('tube-'+id,{path:curve.getPoints(),radius:.065},scene)
+      const m=new StandardMaterial('tube-mat-'+id,scene);m.diffuseColor=new Color3(.24,.31,.35);m.emissiveColor=new Color3(.055,.085,.095);tube.material=m
+    }
+    scene.onBeforeRenderObservable.add(()=>{
+      const currentOrigin=worldOriginCoordinator.origin
+      const worldFocus=renderToWorld({x:camera.target.x,y:camera.target.y,z:camera.target.z},currentOrigin)
+      const rebase=worldOriginCoordinator.rebase(worldFocus)
+      worldOrigin=rebase.current
+      cityStreamer.update(camera.target,worldOrigin)
+      simulationClock.advance(engine.getDeltaTime()/1000,(dt)=>{
+      cityClock+=dt
+      const phase=getTrafficPhase(cityClock)
+      for(const signal of signalBulbs){
+        const green=(signal.axis==='x'&&phase==='x-green')||(signal.axis==='z'&&phase==='z-green')
+        const amber=(signal.axis==='x'&&phase==='x-amber')||(signal.axis==='z'&&phase==='z-amber')
+        signal.red.emissiveColor=green||amber?Color3.Black():Color3.FromHexString('#e45d51').scale(.85)
+        signal.amber.emissiveColor=amber?Color3.FromHexString('#e0b65f').scale(.85):Color3.Black()
+        signal.green.emissiveColor=green?Color3.FromHexString('#71b88a').scale(.85):Color3.Black()
+      }
+      for(const vehicle of vehicles){
+        const allowed=(vehicle.axis==='x'&&phase==='x-green')||(vehicle.axis==='z'&&phase==='z-green')
+        const current=vehicle.coordinate
+        const stop=vehicle.dir>0?-5.3:5.3
+        const atStop=vehicle.dir>0?current>=stop:current<=stop
+        let blocked=!allowed&&atStop
+        if(allowed||!atStop){
+          const next=current+vehicle.dir*vehicle.speed*dt
+          if(!blocked){
+            for(const other of vehicles){
+              if(other===vehicle||other.axis!==vehicle.axis||other.lane!==vehicle.lane||other.dir!==vehicle.dir)continue
+              const gap=(other.coordinate-current)*vehicle.dir
+              if(gap>0&&gap<2.25){blocked=true;break}
+            }
+          }
+          if(!blocked)vehicle.coordinate=next
+        }
+        if(vehicle.coordinate>35)vehicle.coordinate=-35
+        if(vehicle.coordinate< -35)vehicle.coordinate=35
+        if(vehicle.axis==='x'){
+          vehicle.body.position.set(vehicle.coordinate,.38,vehicle.lane);vehicle.cabin.position.set(vehicle.coordinate,.75,vehicle.lane)
+        }else{
+          vehicle.body.position.set(vehicle.lane,.38,vehicle.coordinate);vehicle.cabin.position.set(vehicle.lane,.75,vehicle.coordinate)
+        }
+      }
+      updateCrowd(dt,isWalkPhase(phase))
+      })
+    })
+    let qualityCheckElapsed=0
+    let lastPopulationAdjustment=0
+    scene.onBeforeRenderObservable.add(()=>{
+      qualityCheckElapsed+=engine.getDeltaTime()/1000
+      if(qualityCheckElapsed<2)return
+      qualityCheckElapsed=0
+      const fps=engine.getFps()
+      const now=performance.now()
+      if(now-lastPopulationAdjustment<6000)return
+      let next=activePedestrianCount
+      if(fps<24&&activePedestrianCount>240)next=Math.max(240,Math.floor(activePedestrianCount*.75/24)*24)
+      else if(fps>54&&activePedestrianCount<1008)next=Math.min(1008,activePedestrianCount+96)
+      if(next!==activePedestrianCount){activePedestrianCount=next;lastPopulationAdjustment=now}
+    })
+    let lastDiagnosticsPublish=0
+    scene.onBeforeRenderObservable.add(()=>{
+      const frameMs=engine.getDeltaTime()
+      performanceMonitor.record(frameMs,{
+        meshes:scene.meshes.length,
+        materials:scene.materials.length,
+        loadedChunks:cityStreamer.stats().loadedChunks,
+        activePedestrians:activePedestrianCount
+      })
+      const now=performance.now()
+      if(now-lastDiagnosticsPublish>=1000){
+        lastDiagnosticsPublish=now
+        onDiagnostics(performanceMonitor.snapshot())
+      }
+    })
+    let previousSelection=''
+    scene.onBeforeRenderObservable.add(()=>{
+      const current=selectedRef.current
+      if(current===previousSelection)return
+      for(const agent of agents){
+        const material=nodeMaterials.get(agent.id)
+        if(material)material.emissiveColor=agent.id===current?Color3.FromHexString(agent.color).scale(.1):Color3.Black()
+      }
+      previousSelection=current
+    })
     scene.onPointerObservable.add(info=>{if(info.type!==1)return;const pick=scene.pick(scene.pointerX,scene.pointerY,m=>typeof m.metadata?.agentId==='string');const id=pick?.pickedMesh?.metadata?.agentId;if(typeof id==='string')onSelect(id)})
-    engine.runRenderLoop(()=>scene.render());const resize=()=>engine.resize();window.addEventListener('resize',resize)
-    return()=>{window.removeEventListener('resize',resize);engine.stopRenderLoop();scene.dispose();engine.dispose()}
+    scene.meshes.forEach(mesh=>{if(!mesh.parent)mesh.parent=worldRoot})
+    scene.lights.forEach(light=>{if(!light.parent)light.parent=worldRoot})
+    engine.runRenderLoop(()=>scene.render());scene.executeWhenReady(()=>{const smokeReady=(window.paw as unknown as {desktopSmokeReady?:()=>Promise<unknown>}).desktopSmokeReady;if(smokeReady)void smokeReady()});const resize=()=>engine.resize();window.addEventListener('resize',resize)
+    return()=>{
+      try{persistSceneSnapshot()}catch(error){console.warn('P.A.W. could not persist the scene view.',error)}
+      sceneDisposed=true;onDiagnostics(null);cameraControl.current=null;window.removeEventListener('resize',resize);importedEntityDisposers.forEach(dispose=>dispose());cityStreamer.dispose();host.dispose()
+    }
   },[onSelect])
   return <canvas ref={canvas} className="world" aria-label="Interactive 3D agent network. Drag to orbit and scroll to zoom."/>
 }
 export default function App(){
+  const cameraControl=useRef<{focus:(id:string)=>void;reset:()=>void;importModel:()=>Promise<string>}|null>(null)
+  const [importMessage,setImportMessage]=useState('Import a self-contained GLB model into the local workspace.')
+  const [importBusy,setImportBusy]=useState(false)
+  const [diagnostics,setDiagnostics]=useState<PerformanceSnapshot|null>(null)
   const [selected,setSelected]=useState('orchestrator');const [query,setQuery]=useState('')
   const [providerConfigured,setProviderConfigured]=useState(false)
   const [apiKey,setApiKey]=useState('')
@@ -134,14 +753,30 @@ export default function App(){
     const timer=window.setInterval(()=>void refresh(),1000)
     return()=>{cancelled=true;window.clearInterval(timer)}
   },[activeRun?.id,activeRun?.workspaceId,activeRun?.status])
-  const select=(id:string)=>setSelected(id)
+  const nodeStatuses=useMemo(()=>{
+    const states=new Map<string,string>()
+    if(!activeRun)return states
+    const events=historyEvents.filter(event=>event.payload.runId===activeRun.id).slice().sort((a,b)=>new Date(a.timestamp).getTime()-new Date(b.timestamp).getTime())
+    for(const event of events){
+      const nodeId=event.payload.nodeId
+      if(typeof nodeId!=='string')continue
+      if(event.type==='execution.node.started')states.set(nodeId,'running')
+      else if(event.type==='execution.node.succeeded')states.set(nodeId,'succeeded')
+      else if(event.type==='execution.node.failed')states.set(nodeId,'failed')
+      else if(event.type==='execution.node.blocked')states.set(nodeId,'blocked')
+    }
+    return states
+  },[activeRun?.id,historyEvents])
+  const select=useCallback((id:string)=>setSelected(id),[])
+  const importModel=async()=>{if(!cameraControl.current){setImportMessage('3D scene is still starting.');return}setImportBusy(true);try{setImportMessage(await cameraControl.current.importModel())}catch(error){setImportMessage(error instanceof Error?error.message:'Model import failed.')}finally{setImportBusy(false)}}
+  const budgetViolations=diagnostics?evaluatePerformanceBudget({fps:diagnostics.averageFps,p95FrameMs:diagnostics.p95FrameMs,meshes:diagnostics.meshes,materials:diagnostics.materials,loadedChunks:diagnostics.loadedChunks,activePedestrians:diagnostics.activePedestrians}):[]
   const active=agents.find(a=>a.id===selected)??agents[0]
   return <main className="app">
     <header className="top"><div className="brand"><span className="brandicon"><Boxes size={21}/></span><div><b>P.A.W.</b><small>PERSONAL AGENT WORKSPACE</small></div></div><span className="workspace-tag"><i/> LOCAL WORKSPACE</span><div className="topright"><Settings2 size={16}/><span className="avatar">P</span></div></header>
     <nav className="rail"><Network/><Cpu/><Workflow/><BrainCircuit/><TerminalSquare/><div className="spacer"/><ShieldCheck/></nav>
-    <section className="layout"><aside className="left"><div className="eyebrow">WORKSPACE</div><h1>Agent network</h1><label className="search"><Search size={14}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find agents"/></label><div className="eyebrow section">NETWORK OBJECTS <span>{agents.length.toString().padStart(2,'0')}</span></div>{agents.filter(a=>(a.name+a.role).toLowerCase().includes(query.toLowerCase())).map(a=><button key={a.id} className={'agent '+(selected===a.id?'chosen':'')} onClick={()=>select(a.id)}><span className="glyph" style={{color:a.color}}><Cpu size={16}/></span><span><b>{a.name}</b><small>{a.role}</small></span><i className={a.state.toLowerCase()}/></button>)}<div className="runtime"><div className="eyebrow">RUNTIME STATUS</div><b><Activity size={15}/> Local executor available</b><small>Deterministic typed nodes run in the desktop main process. External tools remain unavailable unless registered behind policy.</small><button className="provider-button primary" onClick={runDemo} disabled={runBusy||!!(activeRun&&['queued','running','pause_requested','paused','cancel_requested'].includes(activeRun.status))}>{runBusy?'Starting…':'Run local smoke test'}</button><small>{runMessage}</small>{activeRun&&<><small>RUN {activeRun.id.slice(0,8)} · {activeRun.status.toUpperCase()}</small>{activeRun&&['running','pause_requested'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('pause')}>Pause</button>}{activeRun&&activeRun.status==='paused'&&<button className="provider-button" onClick={()=>void controlRun('resume')}>Resume</button>}{activeRun&&['running','pause_requested','paused'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('cancel')}>Cancel run</button>}</>}</div></aside>
-    <section className="viewport"><div className="viewhead"><div><div className="eyebrow">SPATIAL WORKSPACE / DEFAULT ZONE</div><h2>Coordination field</h2></div><span className="spatial"><Layers3 size={13}/> SPATIAL <Maximize2 size={14}/></span></div><div className="scene"><World onSelect={select}/><div className="scene-label">PHYSICS PREVIEW / {agents.length} NODES</div><div className="hint">Drag to orbit Â· Scroll to zoom Â· Click a machine to inspect</div></div><footer className="viewfoot"><span>â READY <b>01</b></span><span>â IDLE <b>03</b></span><span className="spacer"/>QUALITY <b>ADAPTIVE</b> Â· CAMERA <b>FREE</b></footer></section>
-    <aside className="inspector"><div className="eyebrow">OBJECT INSPECTOR</div><h2>Agent details</h2><div className="object"><span style={{color:active.color}}><Cpu size={24}/></span><div><b>{active.name}</b><small>{active.role}</small></div><i>{active.state}</i></div><div className="section"><div className="eyebrow">IDENTITY</div><p><span>Node ID</span><code>{active.id}</code></p><p><span>Execution</span><b>Not connected</b></p><p><span>Autonomy</span><b>Not configured</b></p></div><div className="section"><div className="eyebrow">CURRENT TASK</div><div className="task"><b>Task summary</b><p>{active.task}</p><small>No live reasoning or tool activity available.</small></div></div><div className="section"><div className="eyebrow">CONNECTIONS</div><p><span>Dependencies</span><b>{active.id==='orchestrator'?'3 downstream':'1 upstream'}</b></p><p><span>Inputs / outputs</span><b>Not available</b></p></div><div className="section"><div className="eyebrow">OBSERVABILITY / RECENT EVENTS</div><div className="task">Local execution lifecycle events are recorded here. Model-driven agent reasoning is not connected yet.</div><div className="approval-list">{historyEvents.slice().reverse().slice(0,6).map(event=><article className="approval-item" key={event.id}><b>{event.type}</b><small>{new Date(event.timestamp).toLocaleTimeString()}</small><p>{typeof event.payload.nodeId==='string'?'Node '+event.payload.nodeId:typeof event.payload.status==='string'?'Status '+event.payload.status:'Workspace event'}</p></article>)}</div></div><div className="section approval-panel"><div className="eyebrow"><ShieldCheck size={12}/> PERSISTENT APPROVAL QUEUE <span>{approvals.length.toString().padStart(2,'0')}</span></div><p className="approval-note">Manual approval ledger. Approving a record does not execute its described action.</p><label className="provider-label">ACTION</label><input className="provider-input" value={approvalAction} onChange={e=>setApprovalAction(e.target.value)} placeholder="e.g. write-file"/><label className="provider-label">SUMMARY</label><textarea className="provider-input provider-prompt" value={approvalSummary} onChange={e=>setApprovalSummary(e.target.value)} placeholder="Describe the proposed operation and its scope…" rows={2}/><button className="provider-button" onClick={createApproval}>Create pending approval</button><div className="approval-list">{approvals.map(item=><article className="approval-item" key={item.id}><b>{item.action}</b><p>{item.summary}</p><small>{new Date(item.createdAt).toLocaleString()}</small><div><button onClick={()=>decideApproval(item.id,'approved')}>Approve</button><button onClick={()=>decideApproval(item.id,'denied')}>Deny</button></div></article>)}</div><small className="approval-message">{approvalMessage}</small></div><div className="section provider-panel"><div className="eyebrow"><KeyRound size={12}/> MODEL PROVIDER / GROQ</div><div className="provider-status"><i className={providerConfigured?'connected':''}/>{providerMessage}</div><label className="provider-label">API KEY <span>ENCRYPTED AT REST</span></label><input className="provider-input" type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="gsk_… (desktop app only)"/><button className="provider-button" onClick={saveGroq} disabled={providerBusy||!apiKey.trim()}>Store credential securely</button><label className="provider-label">PROMPT</label><textarea className="provider-input provider-prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Ask the Groq model something…" rows={3}/><button className="provider-button primary" onClick={askGroq} disabled={providerBusy||!providerConfigured||!prompt.trim()}><Send size={12}/>{providerBusy?'Working…':'Send prompt'}</button>{answer&&<div className="provider-answer">{answer}</div>}</div><div className="safe">The local typed graph executor is enabled for deterministic built-in nodes. External tools and autonomous model-driven execution remain disabled until policy, approval and tool adapters are connected.</div></aside></section>
+    <section className="layout"><aside className="left"><div className="eyebrow">WORKSPACE</div><h1>Agent network</h1><label className="search"><Search size={14}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find agents"/></label><div className="eyebrow section">NETWORK OBJECTS <span>{agents.length.toString().padStart(2,'0')}</span></div>{agents.filter(a=>(a.name+a.role).toLowerCase().includes(query.toLowerCase())).map(a=><button key={a.id} className={'agent '+(selected===a.id?'chosen':'')} onClick={()=>select(a.id)}><span className="glyph" style={{color:a.color}}><Cpu size={16}/></span><span><b>{a.name}</b><small>{a.role}</small></span><i className={a.state.toLowerCase()}/></button>)}<div className="runtime"><div className="eyebrow">RUNTIME STATUS</div><b><Activity size={15}/> Local executor available</b><small>Deterministic typed nodes run in the desktop main process. External tools remain unavailable unless registered behind policy.</small><button className="provider-button primary" onClick={runDemo} disabled={runBusy||!!(activeRun&&['queued','running','pause_requested','paused','cancel_requested'].includes(activeRun.status))}>{runBusy?'Starting…':'Run local smoke test'}</button><small>{runMessage}</small><div className="execution-nodes" aria-label="Live demo graph execution status"><div className="eyebrow">DEMO GRAPH NODES</div>{demoGraph.nodes.map(node=>{const status=nodeStatuses.get(node.id)??(activeRun?'waiting':'not run');return <div className="execution-node" key={node.id}><span><b>{node.label??node.id}</b><small>{node.type}</small></span><i className={'node-state '+status.replace(' ','-')}>{status.toUpperCase()}</i></div>})}</div>{activeRun&&<><small>RUN {activeRun.id.slice(0,8)} · {activeRun.status.toUpperCase()}</small>{activeRun&&['running','pause_requested'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('pause')}>Pause</button>}{activeRun&&activeRun.status==='paused'&&<button className="provider-button" onClick={()=>void controlRun('resume')}>Resume</button>}{activeRun&&['running','pause_requested','paused'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('cancel')}>Cancel run</button>}</>}</div></aside>
+    <section className="viewport"><div className="viewhead"><div><div className="eyebrow">SPATIAL WORKSPACE / METROPOLITAN GRID</div><h2>Agent City</h2></div><div className="spatial"><Layers3 size={13}/> SPATIAL <button className="camera-control" onClick={()=>cameraControl.current?.focus(selected)} title="Focus selected agent" aria-label="Focus selected agent"><Maximize2 size={14}/></button><button className="camera-control reset-view" onClick={()=>cameraControl.current?.reset()} title="Reset camera" aria-label="Reset camera"><RotateCcw size={13}/></button><button className="camera-control" onClick={()=>void importModel()} disabled={importBusy} title="Import a GLB model" aria-label="Import a GLB model"><Upload size={14}/></button></div></div><div className="scene"><World onSelect={select} selected={selected} cameraControl={cameraControl} onDiagnostics={setDiagnostics} onAssetRestoreStatus={setImportMessage}/><div className="scene-label">CENTRAL DISTRICT / {agents.length} AI AGENTS · 1,008 PEDESTRIAN CAPACITY</div><div className="city-legend"><span><i className="legend-metro"/>METRO HUB</span><span><i className="legend-research"/>RESEARCH</span><span><i className="legend-build"/>ENGINEERING</span><span><i className="legend-review"/>REVIEW</span><span><i className="legend-traffic"/>SIGNAL-CONTROLLED TRAFFIC</span></div><div className="hint">Drag to orbit · Scroll to zoom · Select an agent to inspect</div></div><footer className="viewfoot"><span>GRAPH <b>{activeRun?.status?.toUpperCase()??'IDLE'}</b></span><span>NODES <b>{demoGraph.nodes.length.toString().padStart(2,'0')}</b></span><span className="spacer"/><span title={importMessage}>{importBusy?'IMPORTING MODEL':importMessage}</span> · {diagnostics?<>FPS <b>{Math.round(diagnostics.averageFps)}</b> · P95 <b>{diagnostics.p95FrameMs.toFixed(1)} ms</b> · MESHES <b>{diagnostics.meshes}</b> · CHUNKS <b>{diagnostics.loadedChunks}</b> · CROWD <b>{diagnostics.activePedestrians}</b></>:'MEASURING RENDERER'} · BUDGET <b>{diagnostics?(budgetViolations.length?'OVER LIMIT':'WITHIN LIMIT'):'PENDING'}</b> · CITY <b>PROCEDURAL GRID</b> · CAMERA <b>FREE</b></footer></section>
+    <aside className="inspector"><div className="eyebrow">OBJECT INSPECTOR</div><h2>Agent details</h2><div className="object"><span style={{color:active.color}}><Cpu size={24}/></span><div><b>{active.name}</b><small>{active.role}</small></div><i>{active.state}</i></div><div className="section"><div className="eyebrow">IDENTITY</div><p><span>Node ID</span><code>{active.id}</code></p><p><span>Execution</span><b>Not connected</b></p><p><span>Autonomy</span><b>Not configured</b></p></div><div className="section"><div className="eyebrow">CURRENT TASK</div><div className="task"><b>Task summary</b><p>{active.task}</p><small>No live reasoning or tool activity available.</small></div></div><div className="section"><div className="eyebrow">CONNECTIONS</div><p><span>Dependencies</span><b>{active.id==='orchestrator'?'3 downstream':'1 upstream'}</b></p><p><span>Inputs / outputs</span><b>Not available</b></p></div><div className="section"><div className="eyebrow">OBSERVABILITY / RECENT EVENTS</div><div className="task">Recent events for the selected run. Start a smoke test to inspect node lifecycle events. Model-driven agent reasoning is not connected yet.</div><div className="approval-list">{historyEvents.filter(event=>!activeRun||event.payload.runId===activeRun.id).slice().reverse().slice(0,6).map(event=><article className="approval-item" key={event.id}><b>{event.type}</b><small>{new Date(event.timestamp).toLocaleTimeString()}</small><p>{typeof event.payload.nodeId==='string'?'Node '+event.payload.nodeId:typeof event.payload.status==='string'?'Status '+event.payload.status:'Workspace event'}</p></article>)}</div></div><div className="section approval-panel"><div className="eyebrow"><ShieldCheck size={12}/> PERSISTENT APPROVAL QUEUE <span>{approvals.length.toString().padStart(2,'0')}</span></div><p className="approval-note">Manual approval ledger. Approving a record does not execute its described action.</p><label className="provider-label">ACTION</label><input className="provider-input" value={approvalAction} onChange={e=>setApprovalAction(e.target.value)} placeholder="e.g. write-file"/><label className="provider-label">SUMMARY</label><textarea className="provider-input provider-prompt" value={approvalSummary} onChange={e=>setApprovalSummary(e.target.value)} placeholder="Describe the proposed operation and its scope…" rows={2}/><button className="provider-button" onClick={createApproval}>Create pending approval</button><div className="approval-list">{approvals.map(item=><article className="approval-item" key={item.id}><b>{item.action}</b><p>{item.summary}</p><small>{new Date(item.createdAt).toLocaleString()}</small><div><button onClick={()=>decideApproval(item.id,'approved')}>Approve</button><button onClick={()=>decideApproval(item.id,'denied')}>Deny</button></div></article>)}</div><small className="approval-message">{approvalMessage}</small></div><div className="section provider-panel"><div className="eyebrow"><KeyRound size={12}/> MODEL PROVIDER / GROQ</div><div className="provider-status"><i className={providerConfigured?'connected':''}/>{providerMessage}</div><label className="provider-label">API KEY <span>ENCRYPTED AT REST</span></label><input className="provider-input" type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="gsk_… (desktop app only)"/><button className="provider-button" onClick={saveGroq} disabled={providerBusy||!apiKey.trim()}>Store credential securely</button><label className="provider-label">PROMPT</label><textarea className="provider-input provider-prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Ask the Groq model something…" rows={3}/><button className="provider-button primary" onClick={askGroq} disabled={providerBusy||!providerConfigured||!prompt.trim()}><Send size={12}/>{providerBusy?'Working…':'Send prompt'}</button>{answer&&<div className="provider-answer">{answer}</div>}</div><div className="safe">The local typed graph executor is enabled for deterministic built-in nodes. External tools and autonomous model-driven execution remain disabled until policy, approval and tool adapters are connected.</div></aside></section>
     <footer className="status"><span>â  DEVELOPMENT PREVIEW</span><span>LOCAL GRAPH ENGINE <b>GUARDED</b></span><span>MODEL <b>{providerConfigured?'GROQ CONFIGURED':'NOT CONFIGURED'}</b></span><span className="spacer"/>v0.1.0 Â· Electron Â· Babylon.js</footer>
   </main>
 }

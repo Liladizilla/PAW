@@ -46,6 +46,10 @@ declare global {
   interface Window {
     paw: {
       platform: string;
+      resolveWorkspaceAsset: (uri: string) => Promise<{ rootUrl: string; fileName: string }>;
+      importGlbAsset: () => Promise<{ canceled: true } | { canceled: false; asset: import('../world/asset-catalog').AssetRecord }>;
+      discardImportedGlbAsset: (uri: string) => Promise<{ discarded: true }>;
+      commitImportedGlbAsset: (uri: string) => Promise<{ committed: true }>;
       version: string;
       runtimeStatus: () => Promise<PawRuntimeStatus>;
       validateGraph: (graph: unknown) => Promise<PawGraphValidation>;

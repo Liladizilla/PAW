@@ -2,6 +2,11 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 const paw = Object.freeze({
   platform: process.platform,
+  resolveWorkspaceAsset: (uri: string) => ipcRenderer.invoke('paw:assets:resolve', uri),
+  checkAssetFiles: (uris: string[]) => ipcRenderer.invoke('paw:assets:inspect', uris),
+  importGlbAsset: () => ipcRenderer.invoke('paw:assets:import-glb'),
+  discardImportedGlbAsset: (uri: string) => ipcRenderer.invoke('paw:assets:discard-import', uri),
+  commitImportedGlbAsset: (uri: string) => ipcRenderer.invoke('paw:assets:commit-import', uri),
   version: '0.1.0',
   runtimeStatus: () => ipcRenderer.invoke('paw:runtime-status'),
   validateGraph: (graph: unknown) => ipcRenderer.invoke('paw:graph:validate', graph),
@@ -11,7 +16,6 @@ const paw = Object.freeze({
   cancelGraph: (id: string) => ipcRenderer.invoke('paw:graph:cancel', id),
   listRuns: (workspaceId?: string) => ipcRenderer.invoke('paw:runs:list', workspaceId),
   createRun: (input: { graphId: string; workspaceId?: string }) => ipcRenderer.invoke('paw:runs:create', input),
-  transitionRun: (input: { id: string; status: 'queued' | 'running' | 'pause_requested' | 'paused' | 'cancel_requested' | 'cancelled' | 'succeeded' | 'failed' | 'needs_recovery'; reason?: string }) => ipcRenderer.invoke('paw:runs:transition', input),
   recoverRun: (input: { id: string; resolution: 'retry' | 'abandon'; note?: string }) => ipcRenderer.invoke('paw:runs:recover', input),
   listApprovals: (status?: 'pending' | 'approved' | 'denied') => ipcRenderer.invoke('paw:approvals:list', status),
   requestApproval: (input: { action: string; summary: string; requestedBy?: string }) => ipcRenderer.invoke('paw:approvals:request', input),
@@ -25,7 +29,8 @@ const paw = Object.freeze({
   saveWorkspace: (data: Record<string, unknown>) => ipcRenderer.invoke('paw:workspace:save', data),
   appendHistoryEvent: (event: { type: string; payload?: Record<string, unknown> }) =>
     ipcRenderer.invoke('paw:history:append', event),
-  listHistory: (limit?: number) => ipcRenderer.invoke('paw:history:list', limit)
+  listHistory: (limit?: number) => ipcRenderer.invoke('paw:history:list', limit),
+  ...(process.env.PAW_DESKTOP_SMOKE === '1' ? { desktopSmokeReady: () => ipcRenderer.invoke('paw:desktop-smoke:ready') } : {})
 })
 
 contextBridge.exposeInMainWorld('paw', paw)
