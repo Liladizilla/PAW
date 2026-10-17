@@ -151,6 +151,9 @@ The repository now includes a typed graph validator/planner, a bounded-concurren
 - [x] Expose streamed chunk mesh/material counts and test resource cleanup after eviction/disposal.
 - [ ] Profile repeatable cold-start and steady-state workloads on a real integrated-graphics reference device.
 - [x] Add executable frame-time/FPS and scene-resource budget checks, explicitly labelled provisional until hardware profiling.
+- [x] Surface the live measured performance-budget result in the desktop renderer footer.
+- [x] Add a Linux CI Electron launch smoke test that waits for the renderer's real load event before exiting.
+- [x] Extend release validation to run the Electron startup smoke after the production build.
 - [x] Stress streamed chunk load/eviction over 120 long-distance direction changes and assert bounded live resources and zero resource leaks on disposal.
 - [x] Test persisted asset recovery for deleted and unreadable files, including a restart-shaped snapshot/catalog join.
 - [ ] Set and enforce measured frame-time, memory, import-time, and long-session leak budgets.
