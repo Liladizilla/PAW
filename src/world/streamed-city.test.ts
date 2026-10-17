@@ -118,7 +118,7 @@ test('long-distance streaming keeps world chunk identity and resource counts bou
       root.position.set(-origin.x, -origin.y, -origin.z)
       streamer.update(new Vector3(renderFocus.x, renderFocus.y, renderFocus.z), origin)
 
-      assert.deepEqual(streamer.loadedIds(), chunksAround(worldFocus, 64, 1).map(chunk => chunk.id))
+      assert.deepEqual(streamer.loadedIds(), chunksAround(worldFocus, 64, 1).map(chunk => chunk.id).sort())
       const stats = streamer.stats()
       assert.equal(stats.loadedChunks, 9)
       assert.ok(stats.meshes > 0 && stats.meshes <= 9 * 30)
