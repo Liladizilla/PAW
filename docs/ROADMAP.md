@@ -102,7 +102,8 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Extend coordinator fault tests for prepare failures and reverse-order rollback.
 - [x] Register the live world root and camera target with one coordinator; keep streamed chunks, crowd/traffic visuals and imported assets under the root while simulation/entity data remain world-space.
 - [x] Persist world-space camera focus and the active origin in scene snapshot v3.
-- [ ] Prove multi-boundary travel plus save/reload round trips and injected live-scene failure rollback.
+- [x] Add automated multi-boundary positive/negative travel, nonzero-origin snapshot round-trip for imported entities, and injected live-scene failure rollback tests.
+- [ ] Verify a desktop-driven save/reload round trip against the actual live Electron/Babylon scene, including restored imported-asset files and transforms.
 - [x] Add a reusable bounded fixed-step clock with catch-up limits and tests.
 - [x] Move the live crowd/traffic loop to the shared fixed-step clock; crowd neighbor queries use the spatial index.
 
@@ -152,4 +153,5 @@ The repository now includes a typed graph validator/planner, a bounded-concurren
 - [x] Add a generic render-position participant adapter with staged mutation, rollback, finite-coordinate validation and dynamic owner lookup.
 - [x] Add explicit adapters for camera target, thin-instance matrices, traffic simulation coordinates, and origin-aware chunk streaming; pedestrian world/render contract is tested.
 - [x] Integrate root-based origin rebasing across renderer transforms, camera focus, streamed chunks, traffic/crowd visuals, imported assets and world-space snapshot persistence.
-- [ ] Verify rebasing with travel tests across multiple chunk boundaries and save/reload round trips before calling the world effectively unbounded.
+- [x] Verify origin math across repeated positive/negative chunk boundaries, snapshot serialization of nonzero origin and imported-asset world transforms, and exact rollback after injected coordinator failure.
+- [ ] Verify desktop-driven save/reload against the live Electron/Babylon scene and asset catalog before calling the world effectively unbounded.
