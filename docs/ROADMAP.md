@@ -57,6 +57,7 @@ Acceptance: real model response works without exposing secrets to renderer; deni
 - [x] Add deterministic procedural city parcels with varied heights, footprints, facade colors, stepped towers, slabs, cylindrical buildings and courtyard forms.
 - [x] Extend the ground plane and road/sidewalk grid far beyond the opening camera view so the viewport does not reveal a tiny finite island.
 - [x] Add bounded grid A* navigation with tests for obstacle avoidance and blocked destinations.
+- [x] Add a versioned in-memory world entity/component model, snapshot validation and monotonic scene-domain events; keep it separate from durable agent-runtime events.
 - [x] Add a visible underground metro arrival hub with stairs, retaining walls, platform and track bed.
 - [x] Represent the current named agents as selectable human-shaped 3D figures; keep them visually distinct from workflow graph nodes.
 - [x] Add district labels and a camera framing suitable for exploring the initial city block.
