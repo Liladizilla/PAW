@@ -3,10 +3,13 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+  pull_request:
+    types: [labeled]
 permissions:
   contents: read
 jobs:
   validate:
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'native-package-check')
     name: Validate release candidate
     runs-on: ubuntu-latest
     steps:
@@ -29,6 +32,7 @@ jobs:
       - name: Launch Electron and wait for renderer readiness
         run: npm run test:desktop-smoke
   package:
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'native-package-check')
     needs: validate
     strategy:
       fail-fast: false
