@@ -39,7 +39,7 @@ Use deterministic fake model/tool adapters for ordinary CI. Live-provider tests 
 
 ## Current asset-recovery coverage
 
-Automated unit coverage now checks asset availability IPC normalization, grouping multiple saved entities that reference the same missing file, bounded/sanitized restore reports, catalog prerequisites, and snapshot/catalog rehydration planning. The Electron smoke test proves renderer startup only. A real imported-GLB save/close/relaunch test, including transform and visibility checks, remains a manual release acceptance gate on each supported OS.
+Automated unit coverage now checks asset availability IPC normalization, grouping multiple saved entities that reference the same missing file, bounded/sanitized restore reports, catalog prerequisites, and snapshot/catalog rehydration planning. The Electron smoke test launches the desktop app and waits for the renderer's Babylon scene to report ready before exiting. It does not prove workspace data survives process restart. A real imported-GLB save/close/relaunch test, including transform and visibility checks, remains a manual release acceptance gate on each supported OS.
 
 ## Performance budgets
 
