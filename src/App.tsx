@@ -23,6 +23,7 @@ import { describeUnavailableAssets } from './world/asset-restore-availability'
 import { FixedStepClock } from './world/simulation-clock'
 import { PerformanceMonitor, type PerformanceSnapshot } from './world/performance-monitor'
 import { evaluatePerformanceBudget } from './world/performance-budget'
+import { initialCrowdPopulation, nextCrowdPopulation } from './world/crowd-quality'
 import { demoGraph } from './runtime/demo-graph'
 import { generateCityLots } from './world/city-layout'
 
@@ -317,7 +318,7 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
     type Pedestrian={index:number;axis:'x'|'z';fixed:number;dir:number;depth:number;lane:number;side:number;speed:number;x:number;z:number;mode:'queue'|'approach'|'cross'|'destination'|'return';batch:number}
     const pedestrianCount=1008
     const hardwareThreads=typeof navigator!=='undefined'?(navigator.hardwareConcurrency||4):4
-    let activePedestrianCount=hardwareThreads>=8?1008:hardwareThreads>=4?720:420
+    let activePedestrianCount=initialCrowdPopulation(hardwareThreads)
     const pedestrians:Pedestrian[]=[]
     const crosswalks:[ 'x'|'z',number ][]=[['x',-3.9],['x',3.9],['z',-3.9],['z',3.9]]
     const bodyTemplates:Mesh[]=[]
@@ -611,9 +612,7 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
       const fps=engine.getFps()
       const now=performance.now()
       if(now-lastPopulationAdjustment<6000)return
-      let next=activePedestrianCount
-      if(fps<24&&activePedestrianCount>240)next=Math.max(240,Math.floor(activePedestrianCount*.75/24)*24)
-      else if(fps>54&&activePedestrianCount<1008)next=Math.min(1008,activePedestrianCount+96)
+      const next=nextCrowdPopulation(activePedestrianCount,fps)
       if(next!==activePedestrianCount){activePedestrianCount=next;lastPopulationAdjustment=now}
     })
     let lastDiagnosticsPublish=0
