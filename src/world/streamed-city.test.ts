@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { NullEngine, Scene, Vector3 } from '@babylonjs/core'
+import { NullEngine, Scene, TransformNode, Vector3 } from '@babylonjs/core'
 import { createCityChunkStreamer } from './streamed-city'
 
 test('streamer loads nearby chunks and evicts distant chunk resources after camera travel', () => {
@@ -50,5 +50,22 @@ test('streamer update is idempotent when focus remains inside the same chunk rin
     streamer.dispose()
     scene.dispose()
     engine.dispose()
+  }
+})
+
+
+test('streamer preserves world chunk IDs when render origin shifts', () => {
+  const engine = new NullEngine(), scene = new Scene(engine), streamer = createCityChunkStreamer(scene, 64, 1)
+  try {
+    streamer.update(new Vector3(1024, 0, 1024))
+    const ids = streamer.loadedIds()
+    const root = scene.meshes[0]?.parent as TransformNode | null
+    assert.ok(root); assert.equal(root.position.x, 0)
+    streamer.update(Vector3.Zero(), { x: 1024, y: 0, z: 1024 })
+    assert.deepEqual(streamer.loadedIds(), ids)
+    assert.equal(root.position.x, -1024); assert.equal(root.position.z, -1024)
+  } finally {
+    streamer.dispose(); assert.equal(scene.meshes.length, 0); assert.equal(scene.materials.length, 0)
+    scene.dispose(); engine.dispose()
   }
 })
