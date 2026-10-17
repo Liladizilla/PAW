@@ -9,7 +9,8 @@ import { createBabylonAssetLoader } from './world/babylon-asset-loader'
 import type { SceneEntityRecord } from './world/scene-snapshot'
 import { SpatialIndex } from './world/spatial-index'
 import { decodeSceneSnapshot, encodeSceneSnapshot } from './world/scene-snapshot'
-import { FixedStepClock } from './world/simulation-clock'\nimport { PerformanceMonitor, type PerformanceSnapshot } from './world/performance-monitor'
+import { FixedStepClock } from './world/simulation-clock'
+import { PerformanceMonitor, type PerformanceSnapshot } from './world/performance-monitor'
 import { demoGraph } from './runtime/demo-graph'
 import { generateCityLots } from './world/city-layout'
 
@@ -30,7 +31,8 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
     if(!canvas.current)return
     const host=createEngineHost(canvas.current)
     const {engine,scene,camera}=host
-    const cityStreamer=createCityChunkStreamer(scene)\n    const performanceMonitor=new PerformanceMonitor(120)
+    const cityStreamer=createCityChunkStreamer(scene)
+    const performanceMonitor=new PerformanceMonitor(120)
     const savedEntityTransforms=new Map<string,{x:number;y:number;z:number}>()
     const savedEntityRecords=new Map<string,SceneEntityRecord>()
     const importedEntityDisposers:Array<()=>void>=[]
@@ -548,7 +550,8 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
 export default function App(){
   const cameraControl=useRef<{focus:(id:string)=>void;reset:()=>void;importModel:()=>Promise<string>}|null>(null)
   const [importMessage,setImportMessage]=useState('Import a self-contained GLB model into the local workspace.')
-  const [importBusy,setImportBusy]=useState(false)\n  const [diagnostics,setDiagnostics]=useState<PerformanceSnapshot|null>(null)
+  const [importBusy,setImportBusy]=useState(false)
+  const [diagnostics,setDiagnostics]=useState<PerformanceSnapshot|null>(null)
   const [selected,setSelected]=useState('orchestrator');const [query,setQuery]=useState('')
   const [providerConfigured,setProviderConfigured]=useState(false)
   const [apiKey,setApiKey]=useState('')
