@@ -69,3 +69,29 @@ test('streamer preserves world chunk IDs when render origin shifts', () => {
     scene.dispose(); engine.dispose()
   }
 })
+
+
+test('streamed chunks inherit world-root rebasing without a second local offset', () => {
+  const engine = new NullEngine(), scene = new Scene(engine)
+  const worldRoot = new TransformNode('world-root', scene)
+  const streamer = createCityChunkStreamer(scene, 64, 1, worldRoot)
+  try {
+    streamer.update(new Vector3(1024, 0, 1024))
+    const ids = streamer.loadedIds()
+    const chunkRoot = scene.transformNodes.find(node => node.name.endsWith('-origin-root'))
+    assert.ok(chunkRoot)
+    assert.equal(chunkRoot.parent, worldRoot)
+    assert.equal(chunkRoot.position.x, 0)
+    worldRoot.position.set(-1024, 0, -1024)
+    streamer.update(Vector3.Zero(), { x: 1024, y: 0, z: 1024 })
+    assert.deepEqual(streamer.loadedIds(), ids)
+    assert.equal(chunkRoot.position.x, 0)
+    assert.equal(chunkRoot.position.z, 0)
+    assert.equal(worldRoot.position.x, -1024)
+  } finally {
+    streamer.dispose()
+    worldRoot.dispose(false, false)
+    scene.dispose()
+    engine.dispose()
+  }
+})
