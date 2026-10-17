@@ -38,3 +38,28 @@ test('v2 snapshots migrate with unchanged world-space transforms and zero origin
   assert.deepEqual(migrated.worldOrigin, { x: 0, y: 0, z: 0 })
   assert.deepEqual(migrated.entities, valid.entities)
 })
+
+test('nonzero-origin snapshot round-trips imported entity world transforms unchanged', () => {
+  const worldSnapshot: SceneSnapshot = {
+    ...valid,
+    worldOrigin: { x: 2688, y: 0, z: -2752 },
+    camera: { ...valid.camera, target: { x: 2700, y: 12, z: -2700 } },
+    entities: [{
+      id: 'asset:landmark-01',
+      name: 'IMPORTED LANDMARK',
+      assetId: 'asset-catalog-uuid-01',
+      transform: {
+        position: { x: 2712.5, y: 3, z: -2680.25 },
+        rotation: { x: 0, y: 1.25, z: 0 },
+        scale: { x: 2, y: 2, z: 2 }
+      },
+      visible: true
+    }]
+  }
+
+  const restored = decodeSceneSnapshot(encodeSceneSnapshot(worldSnapshot))
+  assert.deepEqual(restored.worldOrigin, worldSnapshot.worldOrigin)
+  assert.deepEqual(restored.camera.target, worldSnapshot.camera.target)
+  assert.deepEqual(restored.entities, worldSnapshot.entities)
+  assert.equal(restored.entities[0].assetId, 'asset-catalog-uuid-01')
+})
