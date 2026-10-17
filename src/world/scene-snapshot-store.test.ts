@@ -35,6 +35,28 @@ test('stored snapshot migrates legacy key to canonical key before removing legac
   assert.equal(storage.getItem('paw.scene.snapshot.v1'), null)
   assert.ok(storage.getItem('paw.scene.snapshot.v2'))
 })
+test('legacy snapshot remains recoverable when writing canonical migration fails', () => {
+  const storage = new MemoryStorage()
+  const legacy = { ...snapshot, schemaVersion: 2, worldOrigin: undefined }
+  storage.setItem('paw.scene.snapshot.v1', JSON.stringify(legacy))
+  const setItem = storage.setItem.bind(storage)
+  storage.setItem = (key: string, value: string) => {
+    if (key === 'paw.scene.snapshot.v2') throw new Error('simulated storage quota failure')
+    setItem(key, value)
+  }
+  assert.throws(() => loadStoredSceneSnapshot(storage), /simulated storage quota failure/)
+  assert.ok(storage.getItem('paw.scene.snapshot.v1'), 'legacy snapshot must remain available for recovery')
+})
+
+test('invalid canonical snapshot does not silently discard a valid legacy backup', () => {
+  const storage = new MemoryStorage()
+  const legacy = { ...snapshot, schemaVersion: 2, worldOrigin: undefined }
+  storage.setItem('paw.scene.snapshot.v1', JSON.stringify(legacy))
+  storage.setItem('paw.scene.snapshot.v2', '{broken')
+  assert.throws(() => loadStoredSceneSnapshot(storage), /valid JSON/)
+  assert.ok(storage.getItem('paw.scene.snapshot.v1'), 'legacy snapshot must remain available for recovery')
+})
+
 test('malformed snapshots fail closed and explicit cleanup removes both keys', () => {
   const storage = new MemoryStorage()
   storage.setItem('paw.scene.snapshot.v2', '{broken')
