@@ -21,6 +21,6 @@ test('accepts actual Windows and macOS release filenames and ignores auxiliary f
 })
 test('rejects a missing required package format', async t => { const directory = await fixture(t, ['P.A.W-0.1.2.AppImage']); assert.throws(() => verify('linux', directory)) })
 test('rejects an unexpected version or platform filename', async t => { const directory = await fixture(t, ['P.A.W-0.1.2.AppImage','paw-personal-agent-workspace_0.1.2_amd64.deb','P.A.W.-0.1.2.x86_64.rpm','paw-personal-agent-workspace_0.2.0_amd64.deb']); assert.throws(() => verify('linux', directory)) })
-test('rejects unsupported architectures', async t => { const directory = await fixture(t, ['P.A.W-0.1.2-ia32.AppImage','paw-personal-agent-workspace_0.1.2_ia32.deb']); assert.throws(() => verify('linux', directory)) })
+test('rejects unsupported architectures', async t => { const directory = await fixture(t, ['P.A.W-0.1.2-ia32.AppImage','paw-personal-agent-workspace_0.1.2_ia32.deb','P.A.W.-0.1.2.ia32.rpm']); assert.throws(() => verify('linux', directory)) })
 test('rejects empty installer files', async t => { const directory = await fixture(t, ['P.A.W-0.1.2.AppImage','paw-personal-agent-workspace_0.1.2_amd64.deb','P.A.W.-0.1.2.x86_64.rpm']); await writeFile(join(directory, 'paw-personal-agent-workspace_0.1.2_amd64.deb'), ''); assert.throws(() => verify('linux', directory)) })
 test('rejects unknown platforms', async t => { const directory = await fixture(t, ['P.A.W-0.1.2.AppImage']); assert.throws(() => verify('freebsd', directory)) })
