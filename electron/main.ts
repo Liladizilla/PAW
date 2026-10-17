@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, protocol, shell } from 'electron'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { readFile, stat } from 'node:fs/promises'
+import { readFile, realpath, stat } from 'node:fs/promises'
 import { appendHistoryEvent, loadWorkspace, readHistory, saveWorkspace } from './persistence'
 import { clearGroqApiKey, configureGroqApiKey, groqChat, groqProviderStatus } from './providers/groq'
 import { decideApproval, listApprovals, requestApproval } from './approvals'
@@ -32,6 +32,13 @@ function safeAssetPath(uri: string, modelOnly = false): string {
   const rel = relative(root, target)
   if (!rel || rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) throw new Error('Asset path escaped the workspace asset directory.')
   return target
+}
+async function verifiedAssetPath(uri: string, modelOnly = false): Promise<string> {
+  const target = safeAssetPath(uri, modelOnly)
+  const [rootReal, targetReal] = await Promise.all([realpath(assetRoot()), realpath(target)])
+  const rel = relative(rootReal, targetReal)
+  if (!rel || rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) throw new Error('Asset symlink escaped the workspace asset directory.')
+  return targetReal
 }
 async function registerWorkspaceAssetProtocol() {
   await protocol.handle('paw-workspace', async request => {
