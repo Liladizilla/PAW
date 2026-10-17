@@ -13,13 +13,14 @@ export type CityChunkStreamer = { update: (focus: Vector3, origin?: WorldOrigin)
  * the city beyond it. Each chunk's roads lie on its min-edge grid lines so adjoining
  * chunks share the same continuous arterial coordinates.
  */
-export function createCityChunkStreamer(scene: Scene, chunkSize = 64, radius = 2): CityChunkStreamer {
+export function createCityChunkStreamer(scene: Scene, chunkSize = 64, radius = 2, worldRoot?: TransformNode): CityChunkStreamer {
   const loaded = new Map<string, LoadedChunk>()
   const makeChunk = (chunk: WorldChunk, origin: WorldOrigin): LoadedChunk | null => {
     if (Math.abs(chunk.coord.x) <= 5 && Math.abs(chunk.coord.z) <= 5) return null
     const layout = planCityChunk(chunk)
     const root = new TransformNode(chunk.id + '-origin-root', scene)
-    root.position.set(-origin.x, -origin.y, -origin.z)
+    if (worldRoot) { root.parent = worldRoot; root.position.set(0, 0, 0) }
+    else root.position.set(-origin.x, -origin.y, -origin.z)
     const meshes: Mesh[] = [], materials: StandardMaterial[] = []
     const mat = (name: string, color: string) => {
       const m = new StandardMaterial(name, scene)
@@ -64,7 +65,7 @@ export function createCityChunkStreamer(scene: Scene, chunkSize = 64, radius = 2
   const update = (focus: Vector3, origin: WorldOrigin = { x: 0, y: 0, z: 0 }) => {
     const worldFocus = renderToWorld({ x: focus.x, y: focus.y, z: focus.z }, origin)
     const desired = new Map(chunksAround({ x: worldFocus.x, z: worldFocus.z }, chunkSize, radius).map(c => [c.id, c]))
-    for (const chunk of loaded.values()) chunk.root.position.set(-origin.x, -origin.y, -origin.z)
+    for (const chunk of loaded.values()) chunk.root.position.set(worldRoot ? 0 : -origin.x, worldRoot ? 0 : -origin.y, worldRoot ? 0 : -origin.z)
     for (const [id, chunk] of loaded) if (!desired.has(id)) {
       disposeChunk(chunk)
       loaded.delete(id)
