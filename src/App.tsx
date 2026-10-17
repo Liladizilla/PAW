@@ -59,7 +59,7 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         camera.target.set(savedTarget.x,savedTarget.y,savedTarget.z)
         for(const entity of snapshot.entities){savedEntityTransforms.set(entity.id,entity.transform.position);savedEntityRecords.set(entity.id,entity)}
       }
-    }catch{worldOrigin={x:0,y:0,z:0};worldRoot.position.set(0,0,0);clearStoredSceneSnapshots(localStorage)}
+    }catch(error){worldOrigin={x:0,y:0,z:0};worldRoot.position.set(0,0,0);onAssetRestoreStatus('Restore failed: saved scene data could not be validated. The saved data was preserved for recovery. '+(error instanceof Error?error.message:'Unknown storage error'))}
     const worldOriginCoordinator=new WorldOriginCoordinator(worldOrigin)
     worldOriginCoordinator.register(createWorldRootRebaseParticipant('world-root',()=>worldRoot))
     worldOriginCoordinator.register(createCameraTargetRebaseParticipant('camera-target',()=>camera))
