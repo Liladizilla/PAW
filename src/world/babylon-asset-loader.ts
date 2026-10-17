@@ -7,8 +7,8 @@ export function createBabylonAssetLoader(scene: Scene): AssetLoader<TransformNod
   return async (location, asset) => {
     const imported = await SceneLoader.ImportMeshAsync('', location.rootUrl, location.fileName, scene)
     const root = new TransformNode('asset:' + asset.id, scene)
-    for (const mesh of imported.meshes) mesh.parent = root
-    for (const node of imported.transformNodes) if (node !== root) node.parent = root
+    const importedNodes = new Set([...imported.meshes, ...imported.transformNodes])
+    for (const node of importedNodes) if (!node.parent || !importedNodes.has(node.parent as typeof node)) node.parent = root
     root.metadata = { assetId: asset.id, assetKind: asset.kind, sourceUri: asset.uri }
     let disposed = false
     return {
