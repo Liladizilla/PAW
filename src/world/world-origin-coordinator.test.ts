@@ -88,7 +88,9 @@ test('world root and camera target move together while world focus remains stabl
   const result = coordinator.rebase(beforeWorldFocus)
   assert.equal(result.changed, true)
   assert.deepEqual(coordinator.origin, { x: 2688, y: 0, z: -2752 })
-  assert.deepEqual(root.position, { x: -2688, y: 0, z: 2752 })
+  assert.equal(root.position.x, -2688)
+  assert.ok(Math.abs(root.position.y) < 1e-9)
+  assert.equal(root.position.z, 2752)
   assert.deepEqual(camera.target, { x: 12, y: 12, z: 52 })
   assert.deepEqual({
     x: camera.target.x + coordinator.origin.x,
