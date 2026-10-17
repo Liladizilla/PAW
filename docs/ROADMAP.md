@@ -100,7 +100,7 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Surface missing asset catalogs, invalid catalogs and unavailable desktop asset resolvers; validate availability IPC results, attempt real loads when the optional probe fails, and cover restore diagnostics with unit tests.
 - [x] Report the number of models actually rehydrated and surface per-asset loader failures; cover bounded restore summaries with unit tests.
 - [x] Add Babylon NullEngine tests for chunk loading, movement-based eviction, idempotent updates and resource disposal.
-- [x] Add tested world/render coordinate conversions, chunk-snapped origin selection, and a transactional participant coordinator with rollback tests; live scene integration remains open.
+- [x] Add tested world/render coordinate conversions, chunk-snapped origin selection, and a transactional participant coordinator with rollback tests.
 - [x] Add tested transactional adapters for ordinary render positions, camera focus, thin-instance matrix translations with renderer notifications, scalar X/Z coordinates, and coupled traffic coordinates plus vehicle meshes.
 - [x] Make streamed chunk roots origin-aware while deriving chunk IDs from world-space focus; add pedestrian position/route world-render conversion helpers.
 - [x] Extend coordinator fault tests for prepare failures and reverse-order rollback.
