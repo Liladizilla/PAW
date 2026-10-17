@@ -3,6 +3,10 @@ import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Netwo
 import { Color3, Curve3, DirectionalLight, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, StandardMaterial, Vector3 } from '@babylonjs/core'
 import { createEngineHost } from './world/engine-host'
 import { createCityChunkStreamer } from './world/streamed-city'
+import { validateAssetCatalog, type AssetCatalogSnapshot } from './world/asset-catalog'
+import { importWorkspaceAsset } from './world/asset-importer'
+import { createBabylonAssetLoader } from './world/babylon-asset-loader'
+import type { SceneEntityRecord } from './world/scene-snapshot'
 import { SpatialIndex } from './world/spatial-index'
 import { decodeSceneSnapshot, encodeSceneSnapshot } from './world/scene-snapshot'
 import { FixedStepClock } from './world/simulation-clock'
@@ -28,13 +32,16 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     const {engine,scene,camera}=host
     const cityStreamer=createCityChunkStreamer(scene)
     const savedEntityTransforms=new Map<string,{x:number;y:number;z:number}>()
+    const savedEntityRecords=new Map<string,SceneEntityRecord>()
+    const importedEntityDisposers:Array<()=>void>=[]
+    let sceneDisposed=false
     try{
       const saved=localStorage.getItem('paw.scene.snapshot.v2')??localStorage.getItem('paw.scene.snapshot.v1')
       if(saved){
         const snapshot=decodeSceneSnapshot(saved)
         camera.alpha=snapshot.camera.alpha;camera.beta=snapshot.camera.beta;camera.radius=snapshot.camera.radius
         camera.target.set(snapshot.camera.target.x,snapshot.camera.target.y,snapshot.camera.target.z)
-        for(const entity of snapshot.entities)savedEntityTransforms.set(entity.id,entity.transform.position)
+        for(const entity of snapshot.entities){savedEntityTransforms.set(entity.id,entity.transform.position);savedEntityRecords.set(entity.id,entity)}
         localStorage.setItem('paw.scene.snapshot.v2',JSON.stringify(snapshot));localStorage.removeItem('paw.scene.snapshot.v1')
       }
     }catch{localStorage.removeItem('paw.scene.snapshot.v1');localStorage.removeItem('paw.scene.snapshot.v2')}
@@ -379,6 +386,36 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       }
       const badge=MeshBuilder.CreateBox(agent.id+'-badge',{width:.18,height:.1,depth:.06},scene);badge.position.set(agentX,1.03,agentZ-.22);badge.material=material(agent.id+'-badge-mat',agent.color,agent.color);badge.metadata={agentId:agent.id}
     }
+    // Rehydrate saved user entities from a validated local asset catalog.
+    // Named AI agents remain app-owned; imported assets cannot impersonate runtime agents.
+    void (async()=>{
+      try{
+        const rawCatalog=localStorage.getItem('paw.asset.catalog.v1')
+        if(!rawCatalog||!window.paw?.resolveWorkspaceAsset)return
+        const parsed:unknown=JSON.parse(rawCatalog)
+        if(!validateAssetCatalog(parsed).valid)return
+        const catalog=parsed as AssetCatalogSnapshot
+        const assetDriver=createBabylonAssetLoader(scene)
+        for(const record of savedEntityRecords.values()){
+          if(sceneDisposed)return
+          if(!record.assetId||agents.some(agent=>agent.id===record.id))continue
+          const asset=catalog.assets.find(item=>item.id===record.assetId)
+          if(!asset)continue
+          try{
+            const imported=await importWorkspaceAsset(asset,uri=>window.paw.resolveWorkspaceAsset(uri),assetDriver)
+            if(sceneDisposed){imported.dispose();return}
+            const saved=record.transform
+            imported.value.position.set(saved.position.x,saved.position.y,saved.position.z)
+            imported.value.rotation.set(saved.rotation.x,saved.rotation.y,saved.rotation.z)
+            imported.value.scaling.set(saved.scale.x,saved.scale.y,saved.scale.z)
+            imported.value.setEnabled(record.visible)
+            imported.value.name=record.name
+            imported.value.metadata={...(imported.value.metadata??{}),entityId:record.id}
+            importedEntityDisposers.push(imported.dispose)
+          }catch(error){console.warn('P.A.W. skipped unavailable saved asset entity: '+record.id,error)}
+        }
+      }catch(error){console.warn('P.A.W. saved asset catalog is invalid; asset entities were not rehydrated.',error)}
+    })()
     for(const id of ['research','builder','validator']){
       const a=agents[0],b=agents.find(x=>x.id===id)!
       const curve=Curve3.CreateCatmullRomSpline([
@@ -449,11 +486,11 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
           schemaVersion:2,worldId:'paw-main-world',savedAt:new Date().toISOString(),
           camera:{alpha:camera.alpha,beta:camera.beta,radius:camera.radius,target:{x:camera.target.x,y:camera.target.y,z:camera.target.z}},
           loadedChunkIds:cityStreamer.loadedIds(),
-          entities:agents.map(agent=>{const p=savedEntityTransforms.get(agent.id);return {id:agent.id,name:agent.name,transform:{position:{x:p?.x??agent.x,y:p?.y??.83,z:p?.z??agent.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true}}),
+          entities:[...agents.map(agent=>{const p=savedEntityTransforms.get(agent.id);return {id:agent.id,name:agent.name,transform:{position:{x:p?.x??agent.x,y:p?.y??.83,z:p?.z??agent.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true}}),...Array.from(savedEntityRecords.values()).filter(entity=>!agents.some(agent=>agent.id===entity.id))],
           metadata:{engine:'babylonjs',snapshotVersion:2}
         }))
       }catch(error){console.warn('P.A.W. could not persist the scene view.',error)}
-      cameraControl.current=null;window.removeEventListener('resize',resize);cityStreamer.dispose();host.dispose()
+      sceneDisposed=true;cameraControl.current=null;window.removeEventListener('resize',resize);importedEntityDisposers.forEach(dispose=>dispose());cityStreamer.dispose();host.dispose()
     }
   },[onSelect])
   return <canvas ref={canvas} className="world" aria-label="Interactive 3D agent network. Drag to orbit and scroll to zoom."/>
