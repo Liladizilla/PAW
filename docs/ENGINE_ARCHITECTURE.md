@@ -52,9 +52,12 @@ The initial camera opens above a dense urban core with no visible ground-plane e
 
 ## Desktop startup smoke validation
 
-The release validation job builds the Electron application and then runs `npm run test:desktop-smoke` under Xvfb. With `PAW_DESKTOP_SMOKE=1`, the main process exits only after the renderer emits `did-finish-load`; failed renderer navigation exits nonzero. This verifies an actual Electron process and renderer startup in Linux CI. It does not yet prove a full interactive save/close/relaunch asset round trip, and Windows/macOS startup remains covered by packaging rather than equivalent smoke execution.
+The release validation job builds the Electron application and then runs `npm run test:desktop-smoke` under Xvfb on Linux. The Node wrapper applies a 30-second timeout, checks the renderer-ready marker and fails if the build output is absent. With `PAW_DESKTOP_SMOKE=1`, the main process exits only after the renderer emits `did-finish-load`; failed renderer navigation exits nonzero. A unit test covers the missing-build failure path. This verifies an actual Electron process and renderer startup when the release workflow runs. It does not yet prove a full interactive save/close/relaunch asset round trip, and Windows/macOS startup remains covered by packaging rather than equivalent smoke execution.
 
 The live footer evaluates measured renderer samples against the provisional limits in `src/world/performance-budget.ts`. `WITHIN LIMIT` means only that the current sample is within those configured bounds, not that performance has been certified on all hardware.
+
+On startup, the workspace footer surfaces a concise warning when a saved entity points to a missing catalog record or its persisted model file is missing/unreadable. The renderer skips unavailable files rather than pretending the entity loaded. Release checksum generation is covered by tests for stable sorted SHA-256 output and empty artifact directories.
+
 
 ## Asset import and scene restoration
 
