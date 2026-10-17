@@ -435,9 +435,21 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
     void (async()=>{
       try{
         const rawCatalog=localStorage.getItem('paw.asset.catalog.v1')
-        if(!rawCatalog||!window.paw?.resolveWorkspaceAsset)return
+        const savedAssetEntities=[...savedEntityRecords.values()].filter(entity=>!!entity.assetId&&!agents.some(agent=>agent.id===entity.id))
+        if(!rawCatalog){
+          if(savedAssetEntities.length)onAssetRestoreStatus('Restore warning: '+savedAssetEntities.length+' saved model(s) reference a missing asset catalog.')
+          return
+        }
+        if(!window.paw?.resolveWorkspaceAsset){
+          if(savedAssetEntities.length)onAssetRestoreStatus('Restore unavailable: saved models can only be restored in the installed P.A.W. desktop app.')
+          return
+        }
         const parsed:unknown=JSON.parse(rawCatalog)
-        if(!validateAssetCatalog(parsed).valid)return
+        const catalogValidation=validateAssetCatalog(parsed)
+        if(!catalogValidation.valid){
+          onAssetRestoreStatus('Restore failed: invalid asset catalog. '+catalogValidation.issues.slice(0,3).join('; '))
+          return
+        }
         const catalog=parsed as AssetCatalogSnapshot
         const assetDriver=createBabylonAssetLoader(scene)
         const plan=planAssetRehydration([...savedEntityRecords.values()],catalog,agents.map(agent=>agent.id))
