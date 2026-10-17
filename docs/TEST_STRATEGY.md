@@ -37,6 +37,10 @@ Block release on any failing test or unreviewed skipped critical test, unaccepte
 
 Use deterministic fake model/tool adapters for ordinary CI. Live-provider tests are opt-in and use protected secrets; normal CI must not depend on a paid provider or expose keys to PR code. Live tests use low-risk prompts, bounded tokens/time and redacted logs.
 
+## Current asset-recovery coverage
+
+Automated unit coverage now checks asset availability IPC normalization, grouping multiple saved entities that reference the same missing file, bounded/sanitized restore reports, catalog prerequisites, and snapshot/catalog rehydration planning. The Electron smoke test proves renderer startup only. A real imported-GLB save/close/relaunch test, including transform and visibility checks, remains a manual release acceptance gate on each supported OS.
+
 ## Performance budgets
 
 Do not invent baselines. Measure on reference hardware before setting hard limits. Track cold launch/workspace open, idle/active CPU and memory, node/event throughput, cancellation latency, renderer frame-time percentiles, adaptive quality transitions and database/artifact growth. Integrated-graphics, limited-memory hardware is the first reference class; correctness and responsiveness beat decorative physics.
