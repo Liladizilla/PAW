@@ -136,6 +136,23 @@ function registerRuntimeIpc() {
     if (!info.isFile() || info.size > 100_000_000) throw new Error('Asset is missing or exceeds the 100 MB import limit.')
     return { rootUrl: 'paw-workspace://assets/', fileName: raw }
   })
+  ipcMain.handle('paw:assets:inspect', async (_event, raw: unknown) => {
+    if (!Array.isArray(raw) || raw.length > 500 || raw.some(uri => typeof uri !== 'string')) {
+      throw new Error('Asset inspection accepts at most 500 URI strings.')
+    }
+    return Promise.all((raw as string[]).map(async uri => {
+      try {
+        const target = await verifiedAssetPath(uri, true)
+        const info = await stat(target)
+        if (!info.isFile() || info.size > 100_000_000) return { uri, available: false as const, reason: 'unreadable' as const }
+        return { uri, available: true as const }
+      } catch {
+        const safe = (() => { try { safeAssetPath(uri, true); return true } catch { return false } })()
+        return { uri, available: false as const, reason: safe ? 'missing' as const : 'invalid' as const }
+      }
+    }))
+  })
+
   ipcMain.handle('paw:runs:list', (_event, workspaceId: unknown) => listRuns(workspaceId === undefined ? 'default' : String(workspaceId)))
   ipcMain.handle('paw:runs:create', (_event, input: unknown) => {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Run input must be an object.')
