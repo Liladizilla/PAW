@@ -452,6 +452,8 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
             imported.value.position.set(saved.position.x,saved.position.y,saved.position.z)
             imported.value.rotation.set(saved.rotation.x,saved.rotation.y,saved.rotation.z)
             imported.value.scaling.set(saved.scale.x,saved.scale.y,saved.scale.z)
+            // Saved transforms are authoritative world coordinates; the shared root projects them into render space.
+            imported.value.parent=worldRoot
             imported.value.setEnabled(record.visible)
             imported.value.name=record.name
             imported.value.metadata={...(imported.value.metadata??{}),entityId:record.id}
