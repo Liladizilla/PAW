@@ -20,3 +20,11 @@ test('catalog rejects nested or non-finite import settings and empty content has
   const emptyHash=validateAssetCatalog({schemaVersion:1,revision:0,assets:[{...asset,contentHash:' '}]})
   assert.equal(emptyHash.valid,false)
 })
+
+test('catalog URI validation rejects malformed segments and oversized path components',()=> {
+ const unsafeUris=['assets//model.glb','assets/./model.glb','assets/folder\\\\model.glb','assets/'+ 'a'.repeat(256) + '.glb','/assets/model.glb','assets/%2e%2e/secret.glb']
+ for(const uri of unsafeUris){
+  const result=validateAssetCatalog({schemaVersion:1,revision:0,assets:[{...asset,uri}]})
+  assert.equal(result.valid,false,uri)
+ }
+})
