@@ -72,8 +72,8 @@
         "zip"
       ]
     },
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
-    "desktopName": "P.A.W. — Personal Agent Workspace"
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   },
-  "main": "out/main/index.js"
+  "main": "out/main/index.js",
+  "desktopName": "dev.paw.workspace"
 }
