@@ -89,7 +89,9 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Add deterministic chunk coordinate/ring planning, tested deterministic city layouts with continuous road seams, a reusable uniform-grid spatial index and tests.
 - [x] Connect chunk planning to deterministic Babylon mesh generation/disposal for outer-city roads, sidewalks and buildings; world-origin strategy remains open.
 - [x] Add versioned asset catalog metadata and workspace-relative path validation with tests.
-- [x] Persist and validate versioned camera/world-view snapshots locally.\n- [x] Add validated GLTF/GLB import boundary with driver injection, path checks and disposal tests.\n- [ ] Register the Babylon GLTF loader and privileged workspace resolver; finish end-to-end asset rehydration, editable entity components, undo/redo and full scene serialization.
+- [x] Persist and validate versioned camera/world-view snapshots locally.
+- [x] Add validated GLTF/GLB import boundary with driver injection, path checks and disposal tests.
+- [ ] Register the Babylon GLTF loader and privileged workspace resolver; finish end-to-end asset rehydration, editable entity components, undo/redo and full scene serialization.
 - [x] Add a reusable bounded fixed-step clock with catch-up limits and tests.
 - [x] Move the live crowd/traffic loop to the shared fixed-step clock; crowd neighbor queries use the spatial index.
 
