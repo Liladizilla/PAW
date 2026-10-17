@@ -22,11 +22,13 @@ A release is a reviewed artifact, not merely a successful build job. Do not labe
 - [ ] Artifact filenames include version and platform/architecture.
 - [ ] SHA-256 checksums generated and checked.
 - [ ] SBOM/provenance attached when configured.
-- [ ] GitHub Release is published only after validation and every required native package job succeed.\n- [ ] SHA-256 checksum files are attached and independently verified.
+- [ ] GitHub Release is published only after validation and every required native package job succeed.
+- [ ] SHA-256 checksum files are attached and independently verified.
 
 ## Manual acceptance
 
-- [ ] Clean-machine launch and quit on each supported OS.\n- [ ] Verify release is distributed through GitHub Releases; no hosted web deployment is required.
+- [ ] Clean-machine launch and quit on each supported OS.
+- [ ] Verify release is distributed through GitHub Releases; no hosted web deployment is required.
 - [ ] Create/open workspace; restart and verify persisted state.
 - [ ] Provider configuration does not expose secret values to renderer/logs.
 - [ ] Denied tool action cannot execute; pending approval survives restart.
