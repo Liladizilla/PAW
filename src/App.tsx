@@ -12,7 +12,9 @@ import { importWorkspaceAsset } from './world/asset-importer'
 import { createBabylonAssetLoader } from './world/babylon-asset-loader'
 import type { SceneEntityRecord } from './world/scene-snapshot'
 import { SpatialIndex } from './world/spatial-index'
-import { decodeSceneSnapshot, encodeSceneSnapshot } from './world/scene-snapshot'
+import { decodeSceneSnapshot, type SceneSnapshot } from './world/scene-snapshot'
+import { clearStoredSceneSnapshots, loadStoredSceneSnapshot, saveStoredSceneSnapshot } from './world/scene-snapshot-store'
+import { applySavedEntityRecord, planAssetRehydration } from './world/asset-rehydration'
 import { FixedStepClock } from './world/simulation-clock'
 import { PerformanceMonitor, type PerformanceSnapshot } from './world/performance-monitor'
 import { demoGraph } from './runtime/demo-graph'
@@ -43,19 +45,17 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
     const savedEntityRecords=new Map<string,SceneEntityRecord>()
     const importedEntityDisposers:Array<()=>void>=[]
     let sceneDisposed=false
-    const persistSceneSnapshot=()=>localStorage.setItem('paw.scene.snapshot.v2',encodeSceneSnapshot({schemaVersion:3,worldId:'paw-main-world',savedAt:new Date().toISOString(),worldOrigin:worldOriginCoordinator.origin,camera:{alpha:camera.alpha,beta:camera.beta,radius:camera.radius,target:renderToWorld({x:camera.target.x,y:camera.target.y,z:camera.target.z},worldOriginCoordinator.origin)},loadedChunkIds:cityStreamer.loadedIds(),entities:[...agents.map(agent=>{const p=savedEntityTransforms.get(agent.id);return {id:agent.id,name:agent.name,transform:{position:{x:p?.x??agent.x,y:p?.y??.83,z:p?.z??agent.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true}}),...Array.from(savedEntityRecords.values()).filter(entity=>!agents.some(agent=>agent.id===entity.id))],metadata:{engine:'babylonjs',snapshotVersion:3}}))
+    const persistSceneSnapshot=()=>saveStoredSceneSnapshot(localStorage,{schemaVersion:3,worldId:'paw-main-world',savedAt:new Date().toISOString(),worldOrigin:worldOriginCoordinator.origin,camera:{alpha:camera.alpha,beta:camera.beta,radius:camera.radius,target:renderToWorld({x:camera.target.x,y:camera.target.y,z:camera.target.z},worldOriginCoordinator.origin)},loadedChunkIds:cityStreamer.loadedIds(),entities:[...agents.map(agent=>{const p=savedEntityTransforms.get(agent.id);return {id:agent.id,name:agent.name,transform:{position:{x:p?.x??agent.x,y:p?.y??.83,z:p?.z??agent.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true}}),...Array.from(savedEntityRecords.values()).filter(entity=>!agents.some(agent=>agent.id===entity.id))],metadata:{engine:'babylonjs',snapshotVersion:3}})
     try{
-      const saved=localStorage.getItem('paw.scene.snapshot.v2')??localStorage.getItem('paw.scene.snapshot.v1')
-      if(saved){
-        const snapshot=decodeSceneSnapshot(saved)
+      const snapshot=loadStoredSceneSnapshot(localStorage)
+      if(snapshot){
         camera.alpha=snapshot.camera.alpha;camera.beta=snapshot.camera.beta;camera.radius=snapshot.camera.radius
         worldOrigin={...snapshot.worldOrigin};worldRoot.position.set(-worldOrigin.x,-worldOrigin.y,-worldOrigin.z)
         const savedTarget=worldToRender(snapshot.camera.target,worldOrigin)
         camera.target.set(savedTarget.x,savedTarget.y,savedTarget.z)
         for(const entity of snapshot.entities){savedEntityTransforms.set(entity.id,entity.transform.position);savedEntityRecords.set(entity.id,entity)}
-        localStorage.setItem('paw.scene.snapshot.v2',JSON.stringify(snapshot));localStorage.removeItem('paw.scene.snapshot.v1')
       }
-    }catch{worldOrigin={x:0,y:0,z:0};worldRoot.position.set(0,0,0);localStorage.removeItem('paw.scene.snapshot.v1');localStorage.removeItem('paw.scene.snapshot.v2')}
+    }catch{worldOrigin={x:0,y:0,z:0};worldRoot.position.set(0,0,0);clearStoredSceneSnapshots(localStorage)}
     const worldOriginCoordinator=new WorldOriginCoordinator(worldOrigin)
     worldOriginCoordinator.register(createWorldRootRebaseParticipant('world-root',()=>worldRoot))
     worldOriginCoordinator.register(createCameraTargetRebaseParticipant('camera-target',()=>camera))
@@ -440,25 +440,16 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
         if(!validateAssetCatalog(parsed).valid)return
         const catalog=parsed as AssetCatalogSnapshot
         const assetDriver=createBabylonAssetLoader(scene)
-        for(const record of savedEntityRecords.values()){
+        const plan=planAssetRehydration([...savedEntityRecords.values()],catalog,agents.map(agent=>agent.id))
+        for(const missing of plan.missing)console.warn('P.A.W. saved entity references a missing catalog asset: '+missing.entityId+' ('+missing.assetId+')')
+        for(const {entity,asset} of plan.ready){
           if(sceneDisposed)return
-          if(!record.assetId||agents.some(agent=>agent.id===record.id))continue
-          const asset=catalog.assets.find(item=>item.id===record.assetId)
-          if(!asset)continue
           try{
             const imported=await importWorkspaceAsset(asset,uri=>window.paw.resolveWorkspaceAsset(uri),assetDriver)
             if(sceneDisposed){imported.dispose();return}
-            const saved=record.transform
-            imported.value.position.set(saved.position.x,saved.position.y,saved.position.z)
-            imported.value.rotation.set(saved.rotation.x,saved.rotation.y,saved.rotation.z)
-            imported.value.scaling.set(saved.scale.x,saved.scale.y,saved.scale.z)
-            // Saved transforms are authoritative world coordinates; the shared root projects them into render space.
-            imported.value.parent=worldRoot
-            imported.value.setEnabled(record.visible)
-            imported.value.name=record.name
-            imported.value.metadata={...(imported.value.metadata??{}),entityId:record.id}
+            applySavedEntityRecord(imported.value,entity,worldRoot)
             importedEntityDisposers.push(imported.dispose)
-          }catch(error){console.warn('P.A.W. skipped unavailable saved asset entity: '+record.id,error)}
+          }catch(error){console.warn('P.A.W. skipped unavailable saved asset entity: '+entity.id,error)}
         }
       }catch(error){console.warn('P.A.W. saved asset catalog is invalid; asset entities were not rehydrated.',error)}
     })()
