@@ -13,7 +13,9 @@
     "package": "electron-vite build && electron-builder",
     "package:linux": "electron-vite build && electron-builder --linux AppImage deb",
     "package:windows": "electron-vite build && electron-builder --win nsis",
-    "package:mac": "electron-vite build && electron-builder --mac dmg zip"
+    "package:mac": "electron-vite build && electron-builder --mac dmg zip",
+    "test": "tsx --test src/runtime/*.test.ts",
+    "test:watch": "tsx --test --watch src/runtime/*.test.ts"
   },
   "dependencies": {
     "@babylonjs/core": "^8.20.0",
@@ -26,19 +28,41 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8",
+    "electron": "^41.10.6",
+    "electron-builder": "26.15.3",
     "electron-vite": "^3.0.0",
     "typescript": "^5.7.2",
-    "vite": "^6.0.5"
+    "vite": "^6.0.5",
+    "tsx": "^4.20.6",
+    "rollup": "4.59.0"
   },
   "build": {
     "appId": "dev.paw.workspace",
     "productName": "P.A.W.",
-    "directories": { "output": "release" },
-    "files": ["out/**/*", "package.json"],
-    "linux": { "target": ["AppImage", "deb"], "category": "Development" },
-    "win": { "target": ["nsis"] },
-    "mac": { "target": ["dmg", "zip"] }
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    }
   }
 }

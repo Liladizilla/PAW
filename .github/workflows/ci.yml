@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, architecture/system-blueprint]
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,17 +12,23 @@ concurrency:
   cancel-in-progress: true
 jobs:
   validate:
-    name: Typecheck and build
+    name: Typecheck, tests and build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - name: Install dependencies
-        run: npm install
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
       - name: Typecheck
         run: npm run typecheck
+      - name: Unit tests
+        run: npm test
       - name: Production build
         run: npm run build
       - uses: actions/upload-artifact@v4

@@ -1,0 +1,33 @@
+name: Feature request
+description: Propose a capability or improvement for P.A.W.
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the user problem, not only the proposed UI.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What should the user be able to accomplish?
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Security, data or failure considerations
+      description: Mention permissions, persistence, cancellation, recovery or privacy implications where relevant.
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable conditions that would prove the feature works.
+    validations:
+      required: true
