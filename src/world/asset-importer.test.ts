@@ -15,3 +15,9 @@ test('asset importer rejects unsafe catalog paths before invoking a driver', asy
 test('asset importer rejects an unsafe resolver result', async () => {
   await assert.rejects(() => importWorkspaceAsset(asset, async () => ({ rootUrl: 'https://evil.example/assets/', fileName: 'station.glb' }), async () => { throw new Error('must not load') }), /unsafe asset location/)
 })
+test('asset importer rejects malformed injected driver results', async () => {
+  await assert.rejects(
+    () => importWorkspaceAsset(asset, async uri => ({ rootUrl: 'paw-workspace://assets/', fileName: uri }), async () => ({ value: {}, dispose: 7 } as never)),
+    /invalid driver result/
+  )
+})
