@@ -9,7 +9,8 @@ import type { WorldOrigin } from './world-origin'
  */
 export function createThinInstanceRebaseParticipant(
   id: string,
-  getBuffers: () => readonly Float32Array[]
+  getBuffers: () => readonly Float32Array[],
+  onBuffersChanged: () => void = () => {}
 ): RebaseParticipant {
   if (!id.trim()) throw new Error('thin-instance participant requires an ID')
   return {
@@ -41,11 +42,13 @@ export function createThinInstanceRebaseParticipant(
               buffer[i + 14] = before[i + 14] - delta.z
             }
           }
+          onBuffersChanged()
           committed = true
         },
         rollback: () => {
           if (!committed) return
           for (const { buffer, before } of staged) buffer.set(before)
+          onBuffersChanged()
           committed = false
         }
       }
