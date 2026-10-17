@@ -147,8 +147,8 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
       const [axis,fixed]=crosswalks[i%4]
       const dir=(Math.floor(i/4)%2===0)?1:-1
       const row=Math.floor(i/8)
-      const lane=((Math.floor(i/4)%4)-1.5)*.23+(dir>0?-.22:.22)
-      const depth=(row%15)*.48
+      const lane=((row%3)-1)*.38+(dir>0?-.06:.06)
+      const depth=Math.floor(row/3)*.38
       const start=dir>0?-3.55:3.55
       const x=axis==='x'?start-dir*depth:fixed+lane
       const z=axis==='z'?start-dir*depth:fixed+lane
