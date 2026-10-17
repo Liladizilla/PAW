@@ -583,7 +583,7 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
     scene.onPointerObservable.add(info=>{if(info.type!==1)return;const pick=scene.pick(scene.pointerX,scene.pointerY,m=>typeof m.metadata?.agentId==='string');const id=pick?.pickedMesh?.metadata?.agentId;if(typeof id==='string')onSelect(id)})
     scene.meshes.forEach(mesh=>{if(!mesh.parent)mesh.parent=worldRoot})
     scene.lights.forEach(light=>{if(!light.parent)light.parent=worldRoot})
-    engine.runRenderLoop(()=>scene.render());const resize=()=>engine.resize();window.addEventListener('resize',resize)
+    engine.runRenderLoop(()=>scene.render());scene.executeWhenReady(()=>{const smokeReady=(window.paw as unknown as {desktopSmokeReady?:()=>Promise<unknown>}).desktopSmokeReady;if(smokeReady)void smokeReady()});const resize=()=>engine.resize();window.addEventListener('resize',resize)
     return()=>{
       try{persistSceneSnapshot()}catch(error){console.warn('P.A.W. could not persist the scene view.',error)}
       sceneDisposed=true;onDiagnostics(null);cameraControl.current=null;window.removeEventListener('resize',resize);importedEntityDisposers.forEach(dispose=>dispose());cityStreamer.dispose();host.dispose()
