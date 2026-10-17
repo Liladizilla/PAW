@@ -57,6 +57,9 @@ jobs:
         run: node scripts/write-checksums.mjs release
       - name: Verify generated checksums
         run: npm run verify:checksums
+      - name: Keep per-platform checksum validation out of merged artifact set
+        shell: bash
+        run: rm release/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: paw-${{ matrix.os }}
@@ -73,10 +76,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: actions/download-artifact@v4
         with:
           path: release-assets
           merge-multiple: true
+      - name: Generate release-wide SHA-256 checksums
+        run: node scripts/write-checksums.mjs release-assets
+      - name: Verify every published artifact checksum
+        run: node scripts/verify-checksums.mjs release-assets
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
