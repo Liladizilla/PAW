@@ -1,4 +1,5 @@
 /** Pure validation for workspace-relative asset URIs, kept separate from filesystem resolution. */
+const MAX_ASSET_URI_LENGTH = 512
 const SAFE_ASSET_PATH = /^assets\/[a-zA-Z0-9._/-]+$/i
 const SAFE_MODEL_PATH = /\.(?:glb|gltf)$/i
 
