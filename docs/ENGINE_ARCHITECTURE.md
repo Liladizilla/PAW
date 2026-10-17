@@ -48,7 +48,13 @@ The first contract implementation lives in `src/world/world-model.ts`: schema-ve
 
 ## Large-world strategy
 
-The initial camera opens above a dense urban core with no visible ground-plane edge. The scene keeps a broad arterial grid and deterministic central lots. `src/world/streamed-city.ts` now generates real Babylon roads, sidewalks and seeded building meshes in camera-targeted chunks beyond the central district, retains a 5×5 candidate ring and disposes chunks outside it. Pure layouts in `src/world/city-chunk-layout.ts` are tested for determinism and shared road-grid coordinates. This is an initial streaming implementation, not yet a world-origin/sector system or a full LOD pipeline.
+The initial camera opens above a dense urban core with no visible ground-plane edge. The scene keeps a broad arterial grid and deterministic central lots. `src/world/streamed-city.ts` now generates real Babylon roads, sidewalks and seeded building meshes in camera-targeted chunks beyond the central district, retains a 5×5 candidate ring and disposes chunks outside it. Pure layouts in `src/world/city-chunk-layout.ts` are tested for determinism and shared road-grid coordinates. This is an initial streaming implementation, not yet a scene-wide origin-rebasing integration or a full LOD pipeline. `src/world/world-origin.ts` now defines tested world/render coordinate conversions and chunk-snapped origin selection; renderer/chunk transforms must adopt it before claiming large-world precision is active.
+
+## Asset import and scene restoration
+
+GLTF/GLB files use the Babylon loader driver in `src/world/babylon-asset-loader.ts`. The renderer asks the narrow preload bridge to resolve a workspace-relative `assets/...` URI; the Electron main process validates it and serves files only from the app-owned `userData/paw/assets` directory through the privileged `paw-workspace://assets/` scheme. Remote URLs, traversal paths and oversized files are rejected. GLTF external buffers and textures are served through the same constrained scheme.
+
+Scene snapshot v2 can retain arbitrary entity records and rehydrates asset-backed records from the validated local asset catalog key `paw.asset.catalog.v1`. Missing assets are skipped with a warning rather than fabricating geometry. This is restoration, not a finished asset-browser/import UI or general-purpose editing system. Undo/redo, editable component authoring, import progress/cancellation and full scene serialization remain open.
 
 ## Movement and collision
 
