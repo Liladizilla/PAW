@@ -14,6 +14,7 @@ import type { SceneEntityRecord } from './world/scene-snapshot'
 import { SpatialIndex } from './world/spatial-index'
 import { clearStoredSceneSnapshots, loadStoredSceneSnapshot, saveStoredSceneSnapshot } from './world/scene-snapshot-store'
 import { applySavedEntityRecord, planAssetRehydration } from './world/asset-rehydration'
+import { assetRestorePrerequisiteStatus } from './world/asset-restore-prerequisites'
 import { FixedStepClock } from './world/simulation-clock'
 import { PerformanceMonitor, type PerformanceSnapshot } from './world/performance-monitor'
 import { evaluatePerformanceBudget } from './world/performance-budget'
@@ -436,14 +437,9 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
       try{
         const rawCatalog=localStorage.getItem('paw.asset.catalog.v1')
         const savedAssetEntities=[...savedEntityRecords.values()].filter(entity=>!!entity.assetId&&!agents.some(agent=>agent.id===entity.id))
-        if(!rawCatalog){
-          if(savedAssetEntities.length)onAssetRestoreStatus('Restore warning: '+savedAssetEntities.length+' saved model(s) reference a missing asset catalog.')
-          return
-        }
-        if(!window.paw?.resolveWorkspaceAsset){
-          if(savedAssetEntities.length)onAssetRestoreStatus('Restore unavailable: saved models can only be restored in the installed P.A.W. desktop app.')
-          return
-        }
+        const prerequisiteStatus=assetRestorePrerequisiteStatus({savedAssetCount:savedAssetEntities.length,hasCatalog:!!rawCatalog,hasWorkspaceResolver:!!window.paw?.resolveWorkspaceAsset})
+        if(prerequisiteStatus){onAssetRestoreStatus(prerequisiteStatus);return}
+        if(!rawCatalog)return
         const parsed:unknown=JSON.parse(rawCatalog)
         const catalogValidation=validateAssetCatalog(parsed)
         if(!catalogValidation.valid){
