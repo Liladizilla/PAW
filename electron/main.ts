@@ -45,8 +45,8 @@ async function registerWorkspaceAssetProtocol() {
     try {
       const url = new URL(request.url)
       if (url.hostname !== 'assets' || (request.method !== 'GET' && request.method !== 'HEAD')) return new Response('Forbidden', { status: 403 })
-      const uri = decodeURIComponent(url.pathname).replace(/^\\/+/, '')
-      const target = safeAssetPath(uri)
+            const uri = decodeURIComponent(url.pathname).replace(/^\/+/, '')
+      const target = await verifiedAssetPath(uri)
       const info = await stat(target)
       if (!info.isFile() || info.size > 100_000_000) return new Response('Not found', { status: 404 })
       const body = request.method === 'HEAD' ? null : await readFile(target)
@@ -102,7 +102,7 @@ async function settleRun(runId: string, workspaceId: string, target: 'succeeded'
 function registerRuntimeIpc() {
   ipcMain.handle('paw:assets:resolve', async (_event, raw: unknown) => {
     if (typeof raw !== 'string') throw new Error('Asset URI must be text.')
-    const target = safeAssetPath(raw, true)
+    const target = await verifiedAssetPath(raw, true)
     const info = await stat(target)
     if (!info.isFile() || info.size > 100_000_000) throw new Error('Asset is missing or exceeds the 100 MB import limit.')
     return { rootUrl: 'paw-workspace://assets/', fileName: raw }
