@@ -43,8 +43,8 @@ export function createTrafficRebaseParticipant(
               p.owner.x = p.before.x - dx; p.owner.y = p.before.y - dy; p.owner.z = p.before.z - dz
             }
           }
-          onMeshesChanged()
           committed = true
+          onMeshesChanged()
         },
         rollback: () => {
           if (!committed) return
