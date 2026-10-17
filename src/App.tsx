@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, RotateCcw, Search, Send, Settings2, ShieldCheck, TerminalSquare, Workflow } from 'lucide-react'
+import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, RotateCcw, Search, Send, Settings2, ShieldCheck, TerminalSquare, Upload, Workflow } from 'lucide-react'
 import { Color3, Curve3, DirectionalLight, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, StandardMaterial, Vector3 } from '@babylonjs/core'
 import { createEngineHost } from './world/engine-host'
 import { createCityChunkStreamer } from './world/streamed-city'
@@ -22,7 +22,7 @@ const agents:Agent[] = [
   {id:'builder',name:'BUILD ENGINE',role:'Coding agent',color:'#5de0c2',x:4.5,z:-2,state:'IDLE',task:'No task assigned'},
   {id:'validator',name:'VALIDATOR',role:'Testing agent',color:'#ffbd78',x:.5,z:4,state:'IDLE',task:'No task assigned'}
 ]
-function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;selected:string;cameraControl:{current:{focus:(id:string)=>void;reset:()=>void}|null}}) {
+function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;selected:string;cameraControl:{current:{focus:(id:string)=>void;reset:()=>void;importModel:()=>Promise<string>}|null}}) {
   const canvas=useRef<HTMLCanvasElement>(null)
   const selectedRef=useRef(selected)
   selectedRef.current=selected
@@ -35,6 +35,7 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     const savedEntityRecords=new Map<string,SceneEntityRecord>()
     const importedEntityDisposers:Array<()=>void>=[]
     let sceneDisposed=false
+    const persistSceneSnapshot=()=>localStorage.setItem('paw.scene.snapshot.v2',encodeSceneSnapshot({schemaVersion:2,worldId:'paw-main-world',savedAt:new Date().toISOString(),camera:{alpha:camera.alpha,beta:camera.beta,radius:camera.radius,target:{x:camera.target.x,y:camera.target.y,z:camera.target.z}},loadedChunkIds:cityStreamer.loadedIds(),entities:[...agents.map(agent=>{const p=savedEntityTransforms.get(agent.id);return {id:agent.id,name:agent.name,transform:{position:{x:p?.x??agent.x,y:p?.y??.83,z:p?.z??agent.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true}}),...Array.from(savedEntityRecords.values()).filter(entity=>!agents.some(agent=>agent.id===entity.id))],metadata:{engine:'babylonjs',snapshotVersion:2}}))
     try{
       const saved=localStorage.getItem('paw.scene.snapshot.v2')??localStorage.getItem('paw.scene.snapshot.v1')
       if(saved){
@@ -47,7 +48,28 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     }catch{localStorage.removeItem('paw.scene.snapshot.v1');localStorage.removeItem('paw.scene.snapshot.v2')}
     cameraControl.current={
       focus:(id:string)=>{const agent=agents.find(item=>item.id===id);if(!agent)return;const p=savedEntityTransforms.get(agent.id);camera.target=new Vector3(p?.x??agent.x,.8,p?.z??agent.z);camera.radius=13},
-      reset:()=>{camera.target=Vector3.Zero();camera.alpha=-Math.PI/2.2;camera.beta=1.04;camera.radius=185}
+      reset:()=>{camera.target=Vector3.Zero();camera.alpha=-Math.PI/2.2;camera.beta=1.04;camera.radius=185},
+      importModel:async()=>{
+        if(!window.paw?.importGlbAsset||!window.paw?.resolveWorkspaceAsset)throw new Error('GLB import requires the installed desktop app.')
+        const picked=await window.paw.importGlbAsset()
+        if(picked.canceled)return 'Import cancelled.'
+        const currentRaw=localStorage.getItem('paw.asset.catalog.v1')
+        let catalog:AssetCatalogSnapshot={schemaVersion:1,revision:0,assets:[]}
+        if(currentRaw){const parsed:unknown=JSON.parse(currentRaw);const result=validateAssetCatalog(parsed);if(!result.valid)throw new Error('Saved asset catalog is invalid: '+result.issues.join('; '));catalog=parsed as AssetCatalogSnapshot}
+        catalog={...catalog,revision:catalog.revision+1,assets:[...catalog.assets.filter(asset=>asset.id!==picked.asset.id),picked.asset]}
+        const validation=validateAssetCatalog(catalog);if(!validation.valid)throw new Error('Imported asset rejected: '+validation.issues.join('; '))
+        const imported=await importWorkspaceAsset(picked.asset,uri=>window.paw.resolveWorkspaceAsset(uri),createBabylonAssetLoader(scene))
+        if(sceneDisposed){imported.dispose();throw new Error('Scene closed before import completed.')}
+        const id='asset-entity:'+picked.asset.id
+        imported.value.position.set(camera.target.x,0,camera.target.z)
+        imported.value.name='Imported model '+picked.asset.id.slice(0,8)
+        imported.value.metadata={...(imported.value.metadata??{}),entityId:id}
+        importedEntityDisposers.push(imported.dispose)
+        savedEntityRecords.set(id,{id,name:imported.value.name,assetId:picked.asset.id,transform:{position:{x:imported.value.position.x,y:imported.value.position.y,z:imported.value.position.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true})
+        localStorage.setItem('paw.asset.catalog.v1',JSON.stringify(catalog))
+        persistSceneSnapshot()
+        return 'Imported '+picked.asset.uri.split('/').pop()+' and saved it to the scene.'
+      }
     }
     new HemisphericLight('ambient',new Vector3(.1,1,.1),scene).intensity=.9
     const sun=new DirectionalLight('city-sun',new Vector3(-.45,-1,.35),scene);sun.position=new Vector3(-18,32,-16);sun.intensity=.72
@@ -481,22 +503,16 @@ function World({onSelect,selected,cameraControl}:{onSelect:(id:string)=>void;sel
     scene.onPointerObservable.add(info=>{if(info.type!==1)return;const pick=scene.pick(scene.pointerX,scene.pointerY,m=>typeof m.metadata?.agentId==='string');const id=pick?.pickedMesh?.metadata?.agentId;if(typeof id==='string')onSelect(id)})
     engine.runRenderLoop(()=>scene.render());const resize=()=>engine.resize();window.addEventListener('resize',resize)
     return()=>{
-      try{
-        localStorage.setItem('paw.scene.snapshot.v2',encodeSceneSnapshot({
-          schemaVersion:2,worldId:'paw-main-world',savedAt:new Date().toISOString(),
-          camera:{alpha:camera.alpha,beta:camera.beta,radius:camera.radius,target:{x:camera.target.x,y:camera.target.y,z:camera.target.z}},
-          loadedChunkIds:cityStreamer.loadedIds(),
-          entities:[...agents.map(agent=>{const p=savedEntityTransforms.get(agent.id);return {id:agent.id,name:agent.name,transform:{position:{x:p?.x??agent.x,y:p?.y??.83,z:p?.z??agent.z},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},visible:true}}),...Array.from(savedEntityRecords.values()).filter(entity=>!agents.some(agent=>agent.id===entity.id))],
-          metadata:{engine:'babylonjs',snapshotVersion:2}
-        }))
-      }catch(error){console.warn('P.A.W. could not persist the scene view.',error)}
+      try{persistSceneSnapshot()}catch(error){console.warn('P.A.W. could not persist the scene view.',error)}
       sceneDisposed=true;cameraControl.current=null;window.removeEventListener('resize',resize);importedEntityDisposers.forEach(dispose=>dispose());cityStreamer.dispose();host.dispose()
     }
   },[onSelect])
   return <canvas ref={canvas} className="world" aria-label="Interactive 3D agent network. Drag to orbit and scroll to zoom."/>
 }
 export default function App(){
-  const cameraControl=useRef<{focus:(id:string)=>void;reset:()=>void}|null>(null)
+  const cameraControl=useRef<{focus:(id:string)=>void;reset:()=>void;importModel:()=>Promise<string>}|null>(null)
+  const [importMessage,setImportMessage]=useState('Import a self-contained GLB model into the local workspace.')
+  const [importBusy,setImportBusy]=useState(false)
   const [selected,setSelected]=useState('orchestrator');const [query,setQuery]=useState('')
   const [providerConfigured,setProviderConfigured]=useState(false)
   const [apiKey,setApiKey]=useState('')
@@ -608,12 +624,13 @@ export default function App(){
     return states
   },[activeRun?.id,historyEvents])
   const select=useCallback((id:string)=>setSelected(id),[])
+  const importModel=async()=>{if(!cameraControl.current){setImportMessage('3D scene is still starting.');return}setImportBusy(true);try{setImportMessage(await cameraControl.current.importModel())}catch(error){setImportMessage(error instanceof Error?error.message:'Model import failed.')}finally{setImportBusy(false)}}
   const active=agents.find(a=>a.id===selected)??agents[0]
   return <main className="app">
     <header className="top"><div className="brand"><span className="brandicon"><Boxes size={21}/></span><div><b>P.A.W.</b><small>PERSONAL AGENT WORKSPACE</small></div></div><span className="workspace-tag"><i/> LOCAL WORKSPACE</span><div className="topright"><Settings2 size={16}/><span className="avatar">P</span></div></header>
     <nav className="rail"><Network/><Cpu/><Workflow/><BrainCircuit/><TerminalSquare/><div className="spacer"/><ShieldCheck/></nav>
     <section className="layout"><aside className="left"><div className="eyebrow">WORKSPACE</div><h1>Agent network</h1><label className="search"><Search size={14}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find agents"/></label><div className="eyebrow section">NETWORK OBJECTS <span>{agents.length.toString().padStart(2,'0')}</span></div>{agents.filter(a=>(a.name+a.role).toLowerCase().includes(query.toLowerCase())).map(a=><button key={a.id} className={'agent '+(selected===a.id?'chosen':'')} onClick={()=>select(a.id)}><span className="glyph" style={{color:a.color}}><Cpu size={16}/></span><span><b>{a.name}</b><small>{a.role}</small></span><i className={a.state.toLowerCase()}/></button>)}<div className="runtime"><div className="eyebrow">RUNTIME STATUS</div><b><Activity size={15}/> Local executor available</b><small>Deterministic typed nodes run in the desktop main process. External tools remain unavailable unless registered behind policy.</small><button className="provider-button primary" onClick={runDemo} disabled={runBusy||!!(activeRun&&['queued','running','pause_requested','paused','cancel_requested'].includes(activeRun.status))}>{runBusy?'Starting…':'Run local smoke test'}</button><small>{runMessage}</small><div className="execution-nodes" aria-label="Live demo graph execution status"><div className="eyebrow">DEMO GRAPH NODES</div>{demoGraph.nodes.map(node=>{const status=nodeStatuses.get(node.id)??(activeRun?'waiting':'not run');return <div className="execution-node" key={node.id}><span><b>{node.label??node.id}</b><small>{node.type}</small></span><i className={'node-state '+status.replace(' ','-')}>{status.toUpperCase()}</i></div>})}</div>{activeRun&&<><small>RUN {activeRun.id.slice(0,8)} · {activeRun.status.toUpperCase()}</small>{activeRun&&['running','pause_requested'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('pause')}>Pause</button>}{activeRun&&activeRun.status==='paused'&&<button className="provider-button" onClick={()=>void controlRun('resume')}>Resume</button>}{activeRun&&['running','pause_requested','paused'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('cancel')}>Cancel run</button>}</>}</div></aside>
-    <section className="viewport"><div className="viewhead"><div><div className="eyebrow">SPATIAL WORKSPACE / METROPOLITAN GRID</div><h2>Agent City</h2></div><div className="spatial"><Layers3 size={13}/> SPATIAL <button className="camera-control" onClick={()=>cameraControl.current?.focus(selected)} title="Focus selected agent" aria-label="Focus selected agent"><Maximize2 size={14}/></button><button className="camera-control reset-view" onClick={()=>cameraControl.current?.reset()} title="Reset camera" aria-label="Reset camera"><RotateCcw size={13}/></button></div></div><div className="scene"><World onSelect={select} selected={selected} cameraControl={cameraControl}/><div className="scene-label">CENTRAL DISTRICT / {agents.length} AI AGENTS · 1,008 PEDESTRIANS</div><div className="city-legend"><span><i className="legend-metro"/>METRO HUB</span><span><i className="legend-research"/>RESEARCH</span><span><i className="legend-build"/>ENGINEERING</span><span><i className="legend-review"/>REVIEW</span><span><i className="legend-traffic"/>SIGNAL-CONTROLLED TRAFFIC</span></div><div className="hint">Drag to orbit · Scroll to zoom · Select an agent to inspect</div></div><footer className="viewfoot"><span>GRAPH <b>{activeRun?.status?.toUpperCase()??'IDLE'}</b></span><span>NODES <b>{demoGraph.nodes.length.toString().padStart(2,'0')}</b></span><span className="spacer"/>CITY <b>PROCEDURAL GRID</b> · CAMERA <b>FREE</b></footer></section>
+    <section className="viewport"><div className="viewhead"><div><div className="eyebrow">SPATIAL WORKSPACE / METROPOLITAN GRID</div><h2>Agent City</h2></div><div className="spatial"><Layers3 size={13}/> SPATIAL <button className="camera-control" onClick={()=>cameraControl.current?.focus(selected)} title="Focus selected agent" aria-label="Focus selected agent"><Maximize2 size={14}/></button><button className="camera-control reset-view" onClick={()=>cameraControl.current?.reset()} title="Reset camera" aria-label="Reset camera"><RotateCcw size={13}/></button><button className="camera-control" onClick={()=>void importModel()} disabled={importBusy} title="Import a GLB model" aria-label="Import a GLB model"><Upload size={14}/></button></div></div><div className="scene"><World onSelect={select} selected={selected} cameraControl={cameraControl}/><div className="scene-label">CENTRAL DISTRICT / {agents.length} AI AGENTS · 1,008 PEDESTRIANS</div><div className="city-legend"><span><i className="legend-metro"/>METRO HUB</span><span><i className="legend-research"/>RESEARCH</span><span><i className="legend-build"/>ENGINEERING</span><span><i className="legend-review"/>REVIEW</span><span><i className="legend-traffic"/>SIGNAL-CONTROLLED TRAFFIC</span></div><div className="hint">Drag to orbit · Scroll to zoom · Select an agent to inspect</div></div><footer className="viewfoot"><span>GRAPH <b>{activeRun?.status?.toUpperCase()??'IDLE'}</b></span><span>NODES <b>{demoGraph.nodes.length.toString().padStart(2,'0')}</b></span><span className="spacer"/><span title={importMessage}>{importBusy?'IMPORTING MODEL':importMessage}</span> · CITY <b>PROCEDURAL GRID</b> · CAMERA <b>FREE</b></footer></section>
     <aside className="inspector"><div className="eyebrow">OBJECT INSPECTOR</div><h2>Agent details</h2><div className="object"><span style={{color:active.color}}><Cpu size={24}/></span><div><b>{active.name}</b><small>{active.role}</small></div><i>{active.state}</i></div><div className="section"><div className="eyebrow">IDENTITY</div><p><span>Node ID</span><code>{active.id}</code></p><p><span>Execution</span><b>Not connected</b></p><p><span>Autonomy</span><b>Not configured</b></p></div><div className="section"><div className="eyebrow">CURRENT TASK</div><div className="task"><b>Task summary</b><p>{active.task}</p><small>No live reasoning or tool activity available.</small></div></div><div className="section"><div className="eyebrow">CONNECTIONS</div><p><span>Dependencies</span><b>{active.id==='orchestrator'?'3 downstream':'1 upstream'}</b></p><p><span>Inputs / outputs</span><b>Not available</b></p></div><div className="section"><div className="eyebrow">OBSERVABILITY / RECENT EVENTS</div><div className="task">Recent events for the selected run. Start a smoke test to inspect node lifecycle events. Model-driven agent reasoning is not connected yet.</div><div className="approval-list">{historyEvents.filter(event=>!activeRun||event.payload.runId===activeRun.id).slice().reverse().slice(0,6).map(event=><article className="approval-item" key={event.id}><b>{event.type}</b><small>{new Date(event.timestamp).toLocaleTimeString()}</small><p>{typeof event.payload.nodeId==='string'?'Node '+event.payload.nodeId:typeof event.payload.status==='string'?'Status '+event.payload.status:'Workspace event'}</p></article>)}</div></div><div className="section approval-panel"><div className="eyebrow"><ShieldCheck size={12}/> PERSISTENT APPROVAL QUEUE <span>{approvals.length.toString().padStart(2,'0')}</span></div><p className="approval-note">Manual approval ledger. Approving a record does not execute its described action.</p><label className="provider-label">ACTION</label><input className="provider-input" value={approvalAction} onChange={e=>setApprovalAction(e.target.value)} placeholder="e.g. write-file"/><label className="provider-label">SUMMARY</label><textarea className="provider-input provider-prompt" value={approvalSummary} onChange={e=>setApprovalSummary(e.target.value)} placeholder="Describe the proposed operation and its scope…" rows={2}/><button className="provider-button" onClick={createApproval}>Create pending approval</button><div className="approval-list">{approvals.map(item=><article className="approval-item" key={item.id}><b>{item.action}</b><p>{item.summary}</p><small>{new Date(item.createdAt).toLocaleString()}</small><div><button onClick={()=>decideApproval(item.id,'approved')}>Approve</button><button onClick={()=>decideApproval(item.id,'denied')}>Deny</button></div></article>)}</div><small className="approval-message">{approvalMessage}</small></div><div className="section provider-panel"><div className="eyebrow"><KeyRound size={12}/> MODEL PROVIDER / GROQ</div><div className="provider-status"><i className={providerConfigured?'connected':''}/>{providerMessage}</div><label className="provider-label">API KEY <span>ENCRYPTED AT REST</span></label><input className="provider-input" type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="gsk_… (desktop app only)"/><button className="provider-button" onClick={saveGroq} disabled={providerBusy||!apiKey.trim()}>Store credential securely</button><label className="provider-label">PROMPT</label><textarea className="provider-input provider-prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Ask the Groq model something…" rows={3}/><button className="provider-button primary" onClick={askGroq} disabled={providerBusy||!providerConfigured||!prompt.trim()}><Send size={12}/>{providerBusy?'Working…':'Send prompt'}</button>{answer&&<div className="provider-answer">{answer}</div>}</div><div className="safe">The local typed graph executor is enabled for deterministic built-in nodes. External tools and autonomous model-driven execution remain disabled until policy, approval and tool adapters are connected.</div></aside></section>
     <footer className="status"><span>â  DEVELOPMENT PREVIEW</span><span>LOCAL GRAPH ENGINE <b>GUARDED</b></span><span>MODEL <b>{providerConfigured?'GROQ CONFIGURED':'NOT CONFIGURED'}</b></span><span className="spacer"/>v0.1.0 Â· Electron Â· Babylon.js</footer>
   </main>
