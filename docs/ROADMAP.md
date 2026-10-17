@@ -83,7 +83,7 @@ Acceptance: no worker can access the shared SQLite database directly; revoked or
 
 ## M7 — Release hardening
 
-- [ ] Native Linux, Windows and macOS packaging and clean-machine smoke tests.
+- [x] Native Linux AppImage/deb, Windows NSIS and macOS dmg/zip packaging in CI; RPM and clean-machine acceptance are still required.
 - [ ] Dependency/license inventory, secret scan, SBOM and checksums.
 - [ ] Upgrade, uninstall, data-preservation and migration tests.
 - [ ] Verify accessibility, security, performance and recovery acceptance suites.
@@ -92,5 +92,7 @@ Acceptance: no worker can access the shared SQLite database directly; revoked or
 Acceptance: all release gates in docs/PIPELINES.md and docs/TEST_STRATEGY.md are met.
 
 ## Current reality
+
+The streamed city renderer and supporting world modules are now integrated into `main`; CI and all three native package jobs pass on the integration PR. That does not yet prove the city and controls work in a real packaged app. Fedora RPM packaging, version/tag alignment, and manual UI/persistence acceptance remain release blockers.
 
 The repository now includes a typed graph validator/planner, a bounded-concurrency local DAG executor, typed input/output checks, pause/resume/cancel controls, persisted run lifecycle state, recent event history in the desktop UI, local workspace snapshots, append-only event history, durable approval records, manual recovery, guarded IPC and a Groq provider path with encrypted credential storage. The first registered executor nodes are deterministic local text/JSON transforms. External tools, autonomous model-driven planning, idempotency and remote workers remain unimplemented. The browser preview cannot invoke the privileged desktop runtime bridge. The target architecture remains larger than the current implementation.
