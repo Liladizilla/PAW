@@ -1,7 +1,10 @@
-export const SCENE_SNAPSHOT_SCHEMA_VERSION = 2 as const
+import type { WorldOrigin } from './world-origin'
+
+export const SCENE_SNAPSHOT_SCHEMA_VERSION = 3 as const
 export type SceneEntityRecord = {
   id: string
   name: string
+  /** Authoritative world-space transform; never renderer-relative coordinates. */
   transform: { position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number }; scale: { x: number; y: number; z: number } }
   assetId?: string
   visible: boolean
@@ -10,21 +13,24 @@ export type SceneSnapshot = {
   schemaVersion: typeof SCENE_SNAPSHOT_SCHEMA_VERSION
   worldId: string
   savedAt: string
+  /** Renderer origin used for world-to-render projection when this snapshot was written. */
+  worldOrigin: WorldOrigin
   camera: { alpha: number; beta: number; radius: number; target: { x: number; y: number; z: number } }
   loadedChunkIds: string[]
   entities: SceneEntityRecord[]
   metadata: Record<string, string | number | boolean>
 }
-type LegacySnapshot = Omit<SceneSnapshot, 'schemaVersion' | 'entities'> & { schemaVersion: 1; entities?: SceneEntityRecord[] }
+type LegacySnapshot = Omit<SceneSnapshot, 'schemaVersion' | 'worldOrigin'> & { schemaVersion: 1 | 2; worldOrigin?: WorldOrigin; entities?: SceneEntityRecord[] }
 const finiteVector = (v: unknown): v is { x: number; y: number; z: number } =>
   !!v && typeof v === 'object' && ['x', 'y', 'z'].every(k => Number.isFinite((v as Record<string, unknown>)[k]))
 export function validateSceneSnapshot(value: unknown): { valid: boolean; issues: string[] } {
   const issues: string[] = []
   if (!value || typeof value !== 'object') return { valid: false, issues: ['snapshot must be an object'] }
   const s = value as Partial<SceneSnapshot>
-  if (s.schemaVersion !== 2) issues.push('unsupported scene snapshot schema')
+  if (s.schemaVersion !== SCENE_SNAPSHOT_SCHEMA_VERSION) issues.push('unsupported scene snapshot schema')
   if (typeof s.worldId !== 'string' || !s.worldId.trim()) issues.push('worldId is required')
   if (typeof s.savedAt !== 'string' || !Number.isFinite(Date.parse(s.savedAt))) issues.push('savedAt must be a valid date')
+  if (!finiteVector(s.worldOrigin)) issues.push('worldOrigin must contain finite coordinates')
   if (!s.camera || !['alpha', 'beta', 'radius'].every(k => Number.isFinite(s.camera?.[k as 'alpha' | 'beta' | 'radius'])) ||
       !finiteVector(s.camera.target)) issues.push('camera transform must be finite')
   if (!Array.isArray(s.loadedChunkIds) || !s.loadedChunkIds.every(id => typeof id === 'string' && /^chunk:-?\d+:-?\d+$/.test(id))) issues.push('loadedChunkIds must contain valid chunk IDs')
@@ -52,12 +58,17 @@ export function encodeSceneSnapshot(snapshot: SceneSnapshot): string {
   if (!result.valid) throw new Error('invalid scene snapshot: ' + result.issues.join('; '))
   return JSON.stringify(snapshot)
 }
-/** Migrate the previous camera-only v1 document without discarding the saved view. */
+/** Migrate v1 camera-only and v2 world snapshots; both were written before origin metadata existed. */
 export function migrateSceneSnapshot(value: unknown): SceneSnapshot {
   if (!value || typeof value !== 'object') throw new Error('scene snapshot must be an object')
   const legacy = value as LegacySnapshot
-  if (legacy.schemaVersion === 1) {
-    const migrated: SceneSnapshot = { ...legacy, schemaVersion: 2, entities: Array.isArray(legacy.entities) ? legacy.entities : [] }
+  if (legacy.schemaVersion === 1 || legacy.schemaVersion === 2) {
+    const migrated: SceneSnapshot = {
+      ...legacy,
+      schemaVersion: SCENE_SNAPSHOT_SCHEMA_VERSION,
+      worldOrigin: legacy.worldOrigin && finiteVector(legacy.worldOrigin) ? legacy.worldOrigin : { x: 0, y: 0, z: 0 },
+      entities: Array.isArray(legacy.entities) ? legacy.entities : []
+    }
     const result = validateSceneSnapshot(migrated)
     if (!result.valid) throw new Error('invalid migrated scene snapshot: ' + result.issues.join('; '))
     return migrated
