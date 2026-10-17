@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 import { WorldOriginCoordinator, type PreparedRebase } from './world-origin-coordinator'
 import { createCameraTargetRebaseParticipant } from './camera-target-rebase-participant'
 import { createWorldRootRebaseParticipant } from './world-root-rebase-participant'
+import { renderFocusFromWorld, worldFocusFromRender } from './chunk-focus'
+import { worldToRender } from './world-origin'
+import { chunksAround } from './world-chunks'
 
 function participant(id: string, state: { offset: number }, failCommit = false) {
   return {
@@ -97,4 +100,38 @@ test('world root and camera target move together while world focus remains stabl
     y: camera.target.y + coordinator.origin.y,
     z: camera.target.z + coordinator.origin.z
   }, beforeWorldFocus)
+})
+
+test('live root and camera stay stable across repeated positive and negative chunk boundaries', () => {
+  const coordinator = new WorldOriginCoordinator()
+  const root = { position: { x: 0, y: 0, z: 0 } }
+  const camera = { target: { x: 0, y: 12, z: 0 } }
+  coordinator.register(createWorldRootRebaseParticipant('world-root', () => root))
+  coordinator.register(createCameraTargetRebaseParticipant('camera-target', () => camera))
+  const travel = [
+    { x: 2700, y: 12, z: -2700 },
+    { x: 3000, y: 12, z: -3100 },
+    { x: -2700, y: 12, z: 2800 },
+    { x: -5000, y: 12, z: -4800 },
+    { x: 6200, y: 12, z: 6100 },
+    { x: -6400, y: 12, z: 6500 }
+  ]
+
+  for (const worldFocus of travel) {
+    camera.target = renderFocusFromWorld(worldFocus, coordinator.origin)
+    const expectedChunkIds = chunksAround(worldFocus, 64, 1).map(chunk => chunk.id)
+    coordinator.rebase(worldFocus, 64, 2048)
+
+    assert.deepEqual(worldFocusFromRender(camera.target, coordinator.origin), worldFocus)
+    assert.deepEqual(root.position, {
+      x: -coordinator.origin.x,
+      y: -coordinator.origin.y,
+      z: -coordinator.origin.z
+    })
+    assert.deepEqual(
+      chunksAround(worldFocusFromRender(camera.target, coordinator.origin), 64, 1).map(chunk => chunk.id),
+      expectedChunkIds
+    )
+    assert.deepEqual(camera.target, worldToRender(worldFocus, coordinator.origin))
+  }
 })
