@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isTrustedRendererUrl } from './renderer-security'
+import { isSafeWorkspaceAssetUri } from './asset-path-security'
 import { randomUUID } from 'node:crypto'
 import { copyFile, mkdir, readFile, realpath, stat } from 'node:fs/promises'
 import { appendHistoryEvent, loadWorkspace, readHistory, saveWorkspace } from './persistence'
@@ -19,17 +20,13 @@ protocol.registerSchemesAsPrivileged([{
 }])
 
 const WORKSPACE_ID = 'default'
-const SAFE_ASSET_PATH = /^assets\/[a-zA-Z0-9._/-]+$/i
-const SAFE_MODEL_PATH = /\.(?:glb|gltf)$/i
 const ASSET_MIME: Record<string, string> = {
   '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.bin': 'application/octet-stream',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp'
 }
 function assetRoot(): string { return join(app.getPath('userData'), 'paw', 'assets') }
 function safeAssetPath(uri: string, modelOnly = false): string {
-  if (typeof uri !== 'string' || !SAFE_ASSET_PATH.test(uri) || uri.includes(String.fromCharCode(92)) ||
-      uri.split('/').some(part => !part || part === '.' || part === '..') ||
-      (modelOnly && !SAFE_MODEL_PATH.test(uri))) throw new Error('Asset URI must be a safe, workspace-relative assets/ path.')
+  if (!isSafeWorkspaceAssetUri(uri, modelOnly)) throw new Error('Asset URI must be a safe, workspace-relative assets/ path.')
   const root = resolve(assetRoot())
   const target = resolve(root, uri.slice('assets/'.length))
   const rel = relative(root, target)
