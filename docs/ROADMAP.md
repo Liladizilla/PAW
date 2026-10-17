@@ -97,7 +97,7 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Rehydrate saved asset-backed scene entities from the validated local catalog and persist their entity records; asset-browser import UI, editable component authoring, undo/redo and full scene serialization remain open.
 - [x] Parent rehydrated imported assets under the shared world root so saved world-space transforms project correctly after a nonzero-origin restore.
 - [x] Isolate snapshot storage/migration and asset rehydration planning/transform application into tested contracts, including restart-shaped storage tests, missing asset references and visibility restoration.
-- [x] Surface missing asset catalogs, invalid catalogs and unavailable desktop asset resolvers instead of silently skipping saved imported entities; cover restore prerequisite messages with unit tests.
+- [x] Surface missing asset catalogs, invalid catalogs and unavailable desktop asset resolvers; validate availability IPC results, attempt real loads when the optional probe fails, and cover restore diagnostics with unit tests.
 - [x] Report the number of models actually rehydrated and surface per-asset loader failures; cover bounded restore summaries with unit tests.
 - [x] Add Babylon NullEngine tests for chunk loading, movement-based eviction, idempotent updates and resource disposal.
 - [x] Add tested world/render coordinate conversions, chunk-snapped origin selection, and a transactional participant coordinator with rollback tests; live scene integration remains open.
