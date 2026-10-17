@@ -51,7 +51,8 @@
         "AppImage",
         "deb"
       ],
-      "category": "Development"
+      "category": "Development",
+      "maintainer": "Liladizilla <151440626+Liladizilla@users.noreply.github.com>"
     },
     "win": {
       "target": [
