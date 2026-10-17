@@ -16,6 +16,12 @@ P.A.W. is a local-first, cross-platform agent workspace for Linux, Windows and m
 - [Release checklist](docs/RELEASE_CHECKLIST.md): tag, artifact, manual acceptance and rollback gates.
 - [Roadmap](docs/ROADMAP.md): staged implementation and acceptance criteria.
 
+## Downloading desktop builds
+
+Published GitHub Releases contain platform-specific desktop packages. For Fedora and other RPM-based distributions, use the `.rpm` package when available; Fedora Software does not install Debian `.deb` packages. The AppImage is the portable Linux fallback and may require FUSE support. Windows uses the `.exe` installer, while macOS uses the `.dmg` or `.zip` build. Verify downloads against `SHA256SUMS.txt` before installing.
+
+**Release status:** builds are not considered certified until the streamed city scene, controls, import errors, and workspace restoration have been manually checked in a packaged desktop app. Do not treat a successful packaging workflow as proof of working UI.
+
 ## Development
 
 Requires Node.js 22.12+ for the current Electron toolchain.
