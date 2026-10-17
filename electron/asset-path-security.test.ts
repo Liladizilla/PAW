@@ -21,3 +21,7 @@ test('model-only paths reject non-model extensions and non-string input', () => 
   assert.equal(isSafeWorkspaceAssetUri(null, true), false)
   assert.equal(isSafeWorkspaceAssetUri({ uri: 'assets/model.glb' }, true), false)
 })
+
+test('rejects oversized workspace asset URIs before filesystem resolution', () => {
+  assert.equal(isSafeWorkspaceAssetUri('assets/' + 'a'.repeat(506) + '.glb', true), false)
+})
