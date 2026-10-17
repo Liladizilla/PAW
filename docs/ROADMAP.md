@@ -18,6 +18,7 @@ Acceptance: reviewers can identify each module's authority, API boundary, data o
 - [x] Commit package-lock.json and verify clean `npm ci` in CI; keep dependency updates reviewable rather than allowing CI to rewrite branches.
 - [ ] Verify typecheck, renderer build and desktop build from a clean checkout.
 - [x] Add a TypeScript unit-test runner, dependency audit and secret scanning.
+- [x] Include Electron asset-path security regression tests in the standard unit-test command.
 - [ ] Add lint/format and require a clean lockfile-backed CI run.
 - [ ] Validate Electron security settings, preload allowlist and restrictive CSP.
 - [x] Add CI artifact retention and useful failure reports.
