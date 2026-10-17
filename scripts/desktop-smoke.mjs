@@ -11,12 +11,22 @@ if (!existsSync(entry)) {
   process.exit(2)
 }
 const command = process.platform === 'linux' ? 'xvfb-run' : electron
+// CI has no physical GPU. Force Chromium's software renderer so Babylon can
+// initialize WebGL and the readiness signal tests the actual scene lifecycle.
+const electronArgs = [
+  '--no-sandbox',
+  '--enable-unsafe-swiftshader',
+  '--ignore-gpu-blocklist',
+  '--use-gl=angle',
+  '--use-angle=swiftshader',
+  entry
+]
 const args = process.platform === 'linux'
-  ? ['-a', 'env', 'PAW_DESKTOP_SMOKE=1', electron, '--no-sandbox', entry]
-  : ['--no-sandbox', entry]
+  ? ['-a', 'env', 'PAW_DESKTOP_SMOKE=1', electron, ...electronArgs]
+  : electronArgs
 const result = spawnSync(command, args, {
   encoding: 'utf8',
-  timeout: 30000,
+  timeout: 60000,
   maxBuffer: 4 * 1024 * 1024,
   env: { ...process.env, PAW_DESKTOP_SMOKE: '1', ELECTRON_DISABLE_SECURITY_WARNINGS: 'true' }
 })
