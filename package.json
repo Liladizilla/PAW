@@ -14,7 +14,7 @@
     "package:linux": "electron-vite build && electron-builder --linux AppImage deb",
     "package:windows": "electron-vite build && electron-builder --win nsis",
     "package:mac": "electron-vite build && electron-builder --mac dmg zip",
-    "test": "tsx --test electron/*.test.ts src/runtime/*.test.ts src/world/*.test.ts",
+    "test": "tsx --test electron/*.test.ts src/runtime/*.test.ts src/world/*.test.ts && node --test scripts/*.test.mjs",
     "test:watch": "tsx --test --watch electron/*.test.ts src/runtime/*.test.ts src/world/*.test.ts",
     "test:desktop-smoke": "node scripts/desktop-smoke.mjs",
     "verify:checksums": "node scripts/verify-checksums.mjs release"
