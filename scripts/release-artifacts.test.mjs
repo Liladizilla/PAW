@@ -14,17 +14,32 @@ async function fixture(t, files) {
   return directory
 }
 
+function verify(platform, directory) {
+  return execFileSync(process.execPath, [verifier.pathname, platform, directory], { encoding: 'utf8' })
+}
+
 test('release artifact verifier accepts the complete Linux installer set', async t => {
   const directory = await fixture(t, [
     'P.A.W.-0.1.0-linux-x64.AppImage',
     'P.A.W.-0.1.0-linux-x64.deb'
   ])
-  execFileSync(process.execPath, [verifier.pathname, 'linux', directory])
+  assert.match(verify('linux', directory), /Verified linux release artifacts/)
+})
+
+test('release artifact verifier accepts Windows and macOS package sets', async t => {
+  const windows = await fixture(t, ['P.A.W.-0.1.0-win-x64.exe'])
+  assert.match(verify('win', windows), /Verified win release artifacts/)
+
+  const mac = await fixture(t, [
+    'P.A.W.-0.1.0-mac-x64.dmg',
+    'P.A.W.-0.1.0-mac-x64.zip'
+  ])
+  assert.match(verify('mac', mac), /Verified mac release artifacts/)
 })
 
 test('release artifact verifier rejects a missing required package format', async t => {
   const directory = await fixture(t, ['P.A.W.-0.1.0-linux-x64.AppImage'])
-  assert.throws(() => execFileSync(process.execPath, [verifier.pathname, 'linux', directory]))
+  assert.throws(() => verify('linux', directory))
 })
 
 test('release artifact verifier rejects an unexpected version or platform filename', async t => {
@@ -33,7 +48,15 @@ test('release artifact verifier rejects an unexpected version or platform filena
     'P.A.W.-0.1.0-linux-x64.deb',
     'P.A.W.-0.2.0-linux-x64.extra'
   ])
-  assert.throws(() => execFileSync(process.execPath, [verifier.pathname, 'linux', directory]))
+  assert.throws(() => verify('linux', directory))
+})
+
+test('release artifact verifier rejects unsupported architectures', async t => {
+  const directory = await fixture(t, [
+    'P.A.W.-0.1.0-linux-ia32.AppImage',
+    'P.A.W.-0.1.0-linux-ia32.deb'
+  ])
+  assert.throws(() => verify('linux', directory))
 })
 
 test('release artifact verifier rejects empty installer files', async t => {
@@ -42,5 +65,10 @@ test('release artifact verifier rejects empty installer files', async t => {
     'P.A.W.-0.1.0-linux-x64.deb'
   ])
   await writeFile(join(directory, 'P.A.W.-0.1.0-linux-x64.deb'), '')
-  assert.throws(() => execFileSync(process.execPath, [verifier.pathname, 'linux', directory]))
+  assert.throws(() => verify('linux', directory))
+})
+
+test('release artifact verifier rejects unknown platforms', async t => {
+  const directory = await fixture(t, ['P.A.W.-0.1.0-linux-x64.AppImage'])
+  assert.throws(() => verify('freebsd', directory))
 })
