@@ -70,7 +70,8 @@ Acceptance: real model response works without exposing secrets to renderer; deni
 - [ ] Upgrade soft crowd separation to tested rigid-body/capsule collision and robust navmesh pathfinding; current movement is kinematic, not a full physics engine.
 - [ ] Connect the four named AI agents to real runtime events and route them to capability stations; ambient pedestrians must never be presented as executing agents.
 - [x] Add instanced ambient crowds and reuse instance buffers each frame.
-- [ ] Profile 1,000+ pedestrian rendering on integrated graphics and add level-of-detail, adaptive population and quality tiers.
+- [x] Add hardware-aware initial crowd population and FPS-driven thin-instance population tiers with hysteresis.
+- [ ] Profile 1,000+ pedestrian rendering on reference integrated graphics and validate frame-time, memory and visual quality budgets.
 - [ ] Grow the city modularly by streaming deterministic districts/chunks as the product and real workload needs expand; preserve navigation and performance budgets.
 - [ ] Replace sample data with runtime snapshots/events.
 - [ ] Add graph editing, typed ports, connections, selection and multi-select.
@@ -92,6 +93,7 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Persist and validate versioned camera/world-view snapshots locally.
 - [x] Add validated GLTF/GLB import boundary with driver injection, path checks and disposal tests.
 - [x] Register the Babylon GLTF/GLB loader and a privileged, workspace-confined asset resolver.
+- [x] Add a native desktop GLB file picker, copy imported files into the app-owned asset store, load them into the live scene and immediately persist the catalog/entity record; GLTF sidecar import and asset-browser management remain open.
 - [x] Rehydrate saved asset-backed scene entities from the validated local catalog and persist their entity records; asset-browser import UI, editable component authoring, undo/redo and full scene serialization remain open.
 - [x] Add Babylon NullEngine tests for chunk loading, movement-based eviction, idempotent updates and resource disposal.
 - [x] Add tested world/render coordinate conversions and chunk-snapped origin selection; scene-wide rebasing integration remains open.
