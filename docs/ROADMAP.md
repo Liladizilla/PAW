@@ -86,8 +86,12 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 
 - [x] Document engine layer ownership, world/entity model, large-world strategy, navigation contracts, persistence boundaries and engine references.
 - [ ] Extract scene construction from the React view into a separately owned engine host/world module.
-- [ ] Add chunk streaming, world-origin strategy and a spatial index.
-- [ ] Add asset catalog/import pipeline, editable entity components, undo/redo and scene serialization.
+- [x] Add deterministic chunk coordinate/ring planning, a reusable uniform-grid spatial index and tests.
+- [ ] Connect chunk planning to Babylon mesh generation/disposal, world-origin strategy and scene streaming.
+- [x] Add versioned asset catalog metadata and workspace-relative path validation with tests.
+- [ ] Add real GLTF/GLB import pipeline, editable entity components, undo/redo and scene serialization.
+- [x] Add a reusable bounded fixed-step clock with catch-up limits and tests.
+- [ ] Move the live crowd/traffic loop to the shared simulation clock and spatial index.
 
 Acceptance: rendering, world simulation, agent runtime and persistence have separate owners and tested contracts.
 
