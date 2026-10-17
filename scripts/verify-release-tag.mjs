@@ -9,4 +9,4 @@ const tagVersion = tag.slice(1)
 if (tagVersion !== metadata.version) {
   throw new Error('Release tag ' + tag + ' does not match package.json version ' + metadata.version + '. Update package metadata or use the matching tag before publishing.')
 }
-process.stdout.write('Release tag matches package version: ' + tag + '\\n')
+process.stdout.write('Release tag matches package version: ' + tag + '\n')
