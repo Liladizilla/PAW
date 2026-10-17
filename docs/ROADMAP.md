@@ -71,7 +71,7 @@ Acceptance: real model response works without exposing secrets to renderer; deni
 - [ ] Connect the four named AI agents to real runtime events and route them to capability stations; ambient pedestrians must never be presented as executing agents.
 - [x] Add instanced ambient crowds and reuse instance buffers each frame.
 - [x] Add hardware-aware initial crowd population and FPS-driven thin-instance population tiers with hysteresis.
-- [ ] Profile 1,000+ pedestrian rendering on reference integrated graphics and validate frame-time, memory and visual quality budgets.
+- [ ] Profile 1,000+ pedestrian rendering on reference integrated graphics and validate frame-time, memory and visual quality budgets. Provisional executable guardrails exist, but device measurements are still required.
 - [ ] Grow the city modularly by streaming deterministic districts/chunks as the product and real workload needs expand; preserve navigation and performance budgets.
 - [ ] Replace sample data with runtime snapshots/events.
 - [ ] Add graph editing, typed ports, connections, selection and multi-select.
@@ -150,6 +150,9 @@ The repository now includes a typed graph validator/planner, a bounded-concurren
 - [x] Add bounded live renderer telemetry for measured frame-time percentiles and scene/resource counters.
 - [x] Expose streamed chunk mesh/material counts and test resource cleanup after eviction/disposal.
 - [ ] Profile repeatable cold-start and steady-state workloads on a real integrated-graphics reference device.
+- [x] Add executable frame-time/FPS and scene-resource budget checks, explicitly labelled provisional until hardware profiling.
+- [x] Stress streamed chunk load/eviction over 120 long-distance direction changes and assert bounded live resources and zero resource leaks on disposal.
+- [x] Test persisted asset recovery for deleted and unreadable files, including a restart-shaped snapshot/catalog join.
 - [ ] Set and enforce measured frame-time, memory, import-time, and long-session leak budgets.
 - [x] Define and test a transactional origin-rebase participant contract with commit/rollback behavior.
 - [x] Add a generic render-position participant adapter with staged mutation, rollback, finite-coordinate validation and dynamic owner lookup.
