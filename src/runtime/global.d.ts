@@ -47,6 +47,7 @@ declare global {
     paw: {
       platform: string;
       resolveWorkspaceAsset: (uri: string) => Promise<{ rootUrl: string; fileName: string }>;
+      importGlbAsset: () => Promise<{ canceled: true } | { canceled: false; asset: import('../world/asset-catalog').AssetRecord }>;
       version: string;
       runtimeStatus: () => Promise<PawRuntimeStatus>;
       validateGraph: (graph: unknown) => Promise<PawGraphValidation>;
