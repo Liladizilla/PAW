@@ -48,7 +48,7 @@ The first contract implementation lives in `src/world/world-model.ts`: schema-ve
 
 ## Large-world strategy
 
-The initial camera should open above a dense urban core with no visible ground-plane edge. Roads continue in a deterministic grid beyond the visible camera. The first implementation uses a large ground extent and deterministic procedural lots. The next streaming stage must divide the world into spatial chunks (for example 128 m cells), generate nearby chunks, retain a small prefetch ring, and dispose far chunks. Coordinates should eventually use a world-origin/sector model so camera-relative precision is maintained at large distances.
+The initial camera opens above a dense urban core with no visible ground-plane edge. The scene keeps a broad arterial grid and deterministic central lots. `src/world/streamed-city.ts` now generates real Babylon roads, sidewalks and seeded building meshes in camera-targeted chunks beyond the central district, retains a 5×5 candidate ring and disposes chunks outside it. This is an initial streaming implementation, not yet a world-origin/sector system or a full LOD pipeline.
 
 ## Movement and collision
 
@@ -66,12 +66,12 @@ Civilian movement is a simulation concern, not a rendering side effect. Routes a
 
 ## Implemented engine primitives
 
-- `src/world/world-chunks.ts` defines deterministic 128 m-style chunk coordinates and a nearest-first camera streaming ring. It describes the desired streaming policy; it does not yet generate/dispose Babylon meshes automatically.
+- `src/world/world-chunks.ts` defines deterministic chunk coordinates and a nearest-first camera streaming ring. `src/world/streamed-city.ts` consumes that plan to create and dispose real Babylon meshes for seeded outer-district roads, sidewalks and buildings.
 - `src/world/spatial-index.ts` provides a reusable uniform-grid broadphase query for nearby entities and collision candidates.
 - `src/world/asset-catalog.ts` validates versioned asset metadata, workspace-relative paths, import settings and optional bounds. It does not yet import GLTF/GLB or other assets.
 - `src/world/simulation-clock.ts` provides bounded fixed-step timing and reports dropped time during stalls.
 
-These primitives are independently tested. They are not yet wired into a single engine host, and the current scene's crowd/traffic loop still needs migration to the shared clock and spatial index.
+The engine host now owns Babylon renderer/scene/camera lifecycle outside the React component's setup block. The crowd's local-neighbor broadphase now uses the tested uniform-grid spatial index. A bounded fixed-step accumulator remains in the live simulation loop; migration to the shared `FixedStepClock` is still outstanding. Scene view state is version-validated and persisted locally, while complete editable-scene persistence, durable workspace storage and GLTF/GLB import remain outstanding.
 
 ## Incremental implementation gates
 
