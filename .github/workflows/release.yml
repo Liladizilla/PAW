@@ -6,7 +6,28 @@ on:
 permissions:
   contents: write
 jobs:
+  validate:
+    name: Validate release candidate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Production build
+        run: npm run build
   package:
+    needs: validate
     strategy:
       fail-fast: false
       matrix:
@@ -28,6 +49,8 @@ jobs:
         run: npm ci
       - name: Build and package
         run: ${{ matrix.command }}
+      - name: Generate SHA-256 checksums
+        run: node scripts/write-checksums.mjs release
       - uses: actions/upload-artifact@v4
         with:
           name: paw-${{ matrix.os }}
