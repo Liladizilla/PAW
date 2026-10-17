@@ -53,7 +53,10 @@ Acceptance: real model response works without exposing secrets to renderer; deni
 
 ## M4 — Spatial workspace and living city
 
-- [x] Establish a first real-world 3D city blockout: asphalt streets, raised pavements, crosswalks, street lighting and distinct multi-storey buildings.
+- [x] Establish a real-world 3D city core: asphalt streets, raised pavements, crosswalks, street lighting and distinct multi-storey landmarks.
+- [x] Add deterministic procedural city parcels with varied heights, footprints, facade colors, stepped towers, slabs, cylindrical buildings and courtyard forms.
+- [x] Extend the ground plane and road/sidewalk grid far beyond the opening camera view so the viewport does not reveal a tiny finite island.
+- [x] Add bounded grid A* navigation with tests for obstacle avoidance and blocked destinations.
 - [x] Add a visible underground metro arrival hub with stairs, retaining walls, platform and track bed.
 - [x] Represent the current named agents as selectable human-shaped 3D figures; keep them visually distinct from workflow graph nodes.
 - [x] Add district labels and a camera framing suitable for exploring the initial city block.
@@ -61,11 +64,13 @@ Acceptance: real model response works without exposing secrets to renderer; deni
 - [x] Add a procedural ambient pedestrian crowd using Babylon thin instances (1,008 simulated civilians, explicitly distinct from AI agents).
 - [x] Add a timed two-axis traffic controller with physical signal heads, pedestrian scramble phases and vehicles that obey red lights.
 - [x] Add local spatial-hash pedestrian separation and vehicle following gaps to reduce overlaps and traffic pileups.
+- [x] Give ambient pedestrians explicit crosswalk, sidewalk destination and return waypoints instead of endless walking into a fixed boundary.
+- [x] Run crowd and traffic simulation on a bounded fixed-step clock independent of render-frame timing.
 - [ ] Upgrade soft crowd separation to tested rigid-body/capsule collision and robust navmesh pathfinding; current movement is kinematic, not a full physics engine.
 - [ ] Connect the four named AI agents to real runtime events and route them to capability stations; ambient pedestrians must never be presented as executing agents.
 - [x] Add instanced ambient crowds and reuse instance buffers each frame.
 - [ ] Profile 1,000+ pedestrian rendering on integrated graphics and add level-of-detail, adaptive population and quality tiers.
-- [ ] Grow the city modularly by adding districts and infrastructure as the product and real workload needs expand; preserve navigation and performance budgets.
+- [ ] Grow the city modularly by streaming deterministic districts/chunks as the product and real workload needs expand; preserve navigation and performance budgets.
 - [ ] Replace sample data with runtime snapshots/events.
 - [ ] Add graph editing, typed ports, connections, selection and multi-select.
 - [ ] Bind city stations to registered capabilities and live agent assignments.
@@ -75,6 +80,15 @@ Acceptance: real model response works without exposing secrets to renderer; deni
 - [ ] Add adaptive physics/render quality for integrated graphics.
 
 Acceptance: UI state is a projection of the runtime; rendering/physics failure cannot change execution semantics.
+
+## Engine architecture gate
+
+- [x] Document engine layer ownership, world/entity model, large-world strategy, navigation contracts, persistence boundaries and engine references.
+- [ ] Extract scene construction from the React view into a separately owned engine host/world module.
+- [ ] Add chunk streaming, world-origin strategy and a spatial index.
+- [ ] Add asset catalog/import pipeline, editable entity components, undo/redo and scene serialization.
+
+Acceptance: rendering, world simulation, agent runtime and persistence have separate owners and tested contracts.
 
 ## M5 — Teams, memory and automation
 
