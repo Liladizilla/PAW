@@ -520,7 +520,7 @@ function World({onSelect,selected,cameraControl,onDiagnostics}:{onSelect:(id:str
         meshes:scene.meshes.length,
         materials:scene.materials.length,
         loadedChunks:cityStreamer.stats().loadedChunks,
-        activePedestrians
+        activePedestrians:activePedestrianCount
       })
       const now=performance.now()
       if(now-lastDiagnosticsPublish>=1000){
