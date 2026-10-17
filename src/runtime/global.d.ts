@@ -46,6 +46,7 @@ declare global {
   interface Window {
     paw: {
       platform: string;
+      resolveWorkspaceAsset: (uri: string) => Promise<{ rootUrl: string; fileName: string }>;
       version: string;
       runtimeStatus: () => Promise<PawRuntimeStatus>;
       validateGraph: (graph: unknown) => Promise<PawGraphValidation>;
