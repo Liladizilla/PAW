@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { WorldOriginCoordinator, type PreparedRebase } from './world-origin-coordinator'
+import { createCameraTargetRebaseParticipant } from './camera-target-rebase-participant'
+import { createWorldRootRebaseParticipant } from './world-root-rebase-participant'
 
 function participant(id: string, state: { offset: number }, failCommit = false) {
   return {
@@ -69,4 +71,28 @@ test('rollback runs in reverse order after a commit failure', () => {
   assert.throws(() => coordinator.rebase({ x: 2700, y: 0, z: 0 }, 256, 64), /boom/)
   assert.deepEqual(events, ['commit:a','commit:b','commit:c','rollback:c','rollback:b','rollback:a'])
   assert.deepEqual(coordinator.origin, { x: 0, y: 0, z: 0 })
+})
+
+
+test('world root and camera target move together while world focus remains stable', () => {
+  const coordinator = new WorldOriginCoordinator()
+  const root = { position: { x: 0, y: 0, z: 0 } }
+  const camera = { target: { x: 2700, y: 12, z: -2700 } }
+  coordinator.register(createWorldRootRebaseParticipant('world-root', () => root))
+  coordinator.register(createCameraTargetRebaseParticipant('camera-target', () => camera))
+  const beforeWorldFocus = {
+    x: camera.target.x + coordinator.origin.x,
+    y: camera.target.y + coordinator.origin.y,
+    z: camera.target.z + coordinator.origin.z
+  }
+  const result = coordinator.rebase(beforeWorldFocus)
+  assert.equal(result.changed, true)
+  assert.deepEqual(coordinator.origin, { x: 2688, y: 0, z: -2752 })
+  assert.deepEqual(root.position, { x: -2688, y: 0, z: 2752 })
+  assert.deepEqual(camera.target, { x: 12, y: 12, z: 52 })
+  assert.deepEqual({
+    x: camera.target.x + coordinator.origin.x,
+    y: camera.target.y + coordinator.origin.y,
+    z: camera.target.z + coordinator.origin.z
+  }, beforeWorldFocus)
 })
