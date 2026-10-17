@@ -100,7 +100,9 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Add tested transactional adapters for ordinary render positions, camera focus, thin-instance matrix translations with renderer notifications, scalar X/Z coordinates, and coupled traffic coordinates plus vehicle meshes.
 - [x] Make streamed chunk roots origin-aware while deriving chunk IDs from world-space focus; add pedestrian position/route world-render conversion helpers.
 - [x] Extend coordinator fault tests for prepare failures and reverse-order rollback.
-- [ ] Register all live owners with one coordinator and prove atomic travel/save/reload across multiple chunk boundaries.
+- [x] Register the live world root and camera target with one coordinator; keep streamed chunks, crowd/traffic visuals and imported assets under the root while simulation/entity data remain world-space.
+- [x] Persist world-space camera focus and the active origin in scene snapshot v3.
+- [ ] Prove multi-boundary travel plus save/reload round trips and injected live-scene failure rollback.
 - [x] Add a reusable bounded fixed-step clock with catch-up limits and tests.
 - [x] Move the live crowd/traffic loop to the shared fixed-step clock; crowd neighbor queries use the spatial index.
 
@@ -149,5 +151,5 @@ The repository now includes a typed graph validator/planner, a bounded-concurren
 - [x] Define and test a transactional origin-rebase participant contract with commit/rollback behavior.
 - [x] Add a generic render-position participant adapter with staged mutation, rollback, finite-coordinate validation and dynamic owner lookup.
 - [x] Add explicit adapters for camera target, thin-instance matrices, traffic simulation coordinates, and origin-aware chunk streaming; pedestrian world/render contract is tested.
-- [ ] Integrate world-origin rebasing atomically across renderer transforms, camera focus, traffic, crowd, imported assets, and persisted world coordinates.
+- [x] Integrate root-based origin rebasing across renderer transforms, camera focus, streamed chunks, traffic/crowd visuals, imported assets and world-space snapshot persistence.
 - [ ] Verify rebasing with travel tests across multiple chunk boundaries and save/reload round trips before calling the world effectively unbounded.
