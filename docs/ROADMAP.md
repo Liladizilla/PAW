@@ -91,7 +91,10 @@ Acceptance: UI state is a projection of the runtime; rendering/physics failure c
 - [x] Add versioned asset catalog metadata and workspace-relative path validation with tests.
 - [x] Persist and validate versioned camera/world-view snapshots locally.
 - [x] Add validated GLTF/GLB import boundary with driver injection, path checks and disposal tests.
-- [ ] Register the Babylon GLTF loader and privileged workspace resolver; finish end-to-end asset rehydration, editable entity components, undo/redo and full scene serialization.
+- [x] Register the Babylon GLTF/GLB loader and a privileged, workspace-confined asset resolver.
+- [x] Rehydrate saved asset-backed scene entities from the validated local catalog and persist their entity records; asset-browser import UI, editable component authoring, undo/redo and full scene serialization remain open.
+- [x] Add Babylon NullEngine tests for chunk loading, movement-based eviction, idempotent updates and resource disposal.
+- [x] Add tested world/render coordinate conversions and chunk-snapped origin selection; scene-wide rebasing integration remains open.
 - [x] Add a reusable bounded fixed-step clock with catch-up limits and tests.
 - [x] Move the live crowd/traffic loop to the shared fixed-step clock; crowd neighbor queries use the spatial index.
 
