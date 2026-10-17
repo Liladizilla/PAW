@@ -90,3 +90,12 @@ The engine host owns Babylon renderer/scene/camera lifecycle outside React's set
 7. Device-tier profiling, adaptive quality, packaging and recovery tests.
 
 A feature is not considered complete merely because it renders. It needs a data contract, failure behavior, tests, a resource budget and a user-visible inspection path.
+
+
+## Renderer telemetry and performance evidence
+
+The viewport now samples actual Babylon renderer frame deltas into a bounded 120-sample window and displays average FPS, p95 frame time, scene mesh/material counts, loaded streamed chunks, and the active crowd tier. These are live diagnostics, not a benchmark claim. The frame-time percentile is calculated from observed samples; it is not a GPU timestamp or a substitute for a repeatable profiling session.
+
+The city streamer exposes resource counts for its currently loaded chunks and its tests assert that disposal returns the streamed scene to zero meshes and materials. Before release, collect repeatable measurements on supported reference hardware (including integrated graphics) and define acceptable cold-start, steady-state frame-time, memory, import, and long-session leak budgets.
+
+Large-world origin rebasing remains a coordinate utility only. It is **not integrated** into the live scene because the renderer, camera, traffic, crowd, imported entities, and snapshots must all switch coordinate spaces atomically to avoid visible jumps or corrupted persistence.
