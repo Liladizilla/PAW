@@ -23,7 +23,7 @@ function makeIco(image) {
 }
 function makeIcns(image) {
   const chunk = Buffer.alloc(8 + image.length)
-  chunk.write('ic07', 0, 'ascii'); chunk.writeUInt32BE(chunk.length, 4); image.copy(chunk, 8)
+  chunk.write('ic08', 0, 'ascii'); chunk.writeUInt32BE(chunk.length, 4); image.copy(chunk, 8)
   const header = Buffer.alloc(8); header.write('icns', 0, 'ascii'); header.writeUInt32BE(header.length + chunk.length, 4)
   return Buffer.concat([header, chunk])
 }
