@@ -76,6 +76,22 @@
         "zip"
       ],
       "icon": "build/icons/paw-icon.icns"
+    },
+    "extraResources": [
+      {
+        "from": "packaging/appdata/dev.paw.workspace.metainfo.xml",
+        "to": "appdata/dev.paw.workspace.metainfo.xml"
+      },
+      {
+        "from": "build/icons/paw-icon.png",
+        "to": "appdata/paw-icon.png"
+      }
+    ],
+    "deb": {
+      "afterInstall": "packaging/linux/postinstall.sh"
+    },
+    "rpm": {
+      "afterInstall": "packaging/linux/postinstall.sh"
     }
   },
   "main": "out/main/index.js"
