@@ -28,27 +28,31 @@ function makeIco(image) {
 function resizePng(input, targetWidth, targetHeight) {
   const signature = input.subarray(0, 8)
   const chunks = []
+  let palette = null, transparency = null
   let width = 0, height = 0, bitDepth = 0, colorType = 0, interlace = 0
   for (let offset = 8; offset < input.length;) {
     const length = input.readUInt32BE(offset)
     const type = input.toString('ascii', offset + 4, offset + 8)
     const data = input.subarray(offset + 8, offset + 8 + length)
     if (type === 'IHDR') { width = data.readUInt32BE(0); height = data.readUInt32BE(4); bitDepth = data[8]; colorType = data[9]; interlace = data[12] }
+    if (type === 'PLTE') palette = Buffer.from(data)
+    if (type === 'tRNS') transparency = Buffer.from(data)
     if (type === 'IDAT') chunks.push(data)
     offset += 12 + length
     if (type === 'IEND') break
   }
-  if (!width || !height || bitDepth !== 8 || ![2, 6].includes(colorType) || interlace !== 0) throw new Error('Icon PNG must be non-interlaced 8-bit RGB or RGBA.')
-  const channels = colorType === 6 ? 4 : 3, stride = width * channels
+  if (!width || !height || (colorType === 3 ? ![1, 2, 4, 8].includes(bitDepth) : bitDepth !== 8) || ![0, 2, 3, 4, 6].includes(colorType) || interlace !== 0) throw new Error('Icon PNG must be non-interlaced with a supported 8-bit color format or 1/2/4/8-bit indexed color.')
+  if (colorType === 3 && (!palette || palette.length < 3 || palette.length % 3 !== 0)) throw new Error('Indexed icon PNG is missing a valid color palette.')
+  const channels = ({ 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 })[colorType], stride = Math.ceil(width * channels * bitDepth / 8), filterBpp = Math.max(1, Math.ceil(channels * bitDepth / 8))
   const packed = inflateSync(Buffer.concat(chunks))
   const raw = Buffer.alloc(height * stride)
   let inputOffset = 0
   for (let y = 0; y < height; y++) {
     const filter = packed[inputOffset++], row = y * stride
     for (let x = 0; x < stride; x++) {
-      const value = packed[inputOffset++], left = x >= channels ? raw[row + x - channels] : 0
+      const value = packed[inputOffset++], left = x >= filterBpp ? raw[row + x - filterBpp] : 0
       const up = y ? raw[row - stride + x] : 0
-      const upperLeft = y && x >= channels ? raw[row - stride + x - channels] : 0
+      const upperLeft = y && x >= filterBpp ? raw[row - stride + x - filterBpp] : 0
       let predictor = 0
       if (filter === 1) predictor = left
       else if (filter === 2) predictor = up
@@ -67,7 +71,17 @@ function resizePng(input, targetWidth, targetHeight) {
     for (let x = 0; x < targetWidth; x++) {
       const sx = Math.min(width - 1, Math.floor(x * width / targetWidth))
       const src = sy * stride + sx * channels, dst = row + 1 + x * 4
-      out[dst] = raw[src]; out[dst + 1] = raw[src + 1]; out[dst + 2] = raw[src + 2]; out[dst + 3] = channels === 4 ? raw[src + 3] : 255
+      if (colorType === 3) {
+        const bitOffset = sx * bitDepth, shift = 8 - bitDepth - (bitOffset % 8)
+        const index = (raw[sy * stride + Math.floor(bitOffset / 8)] >> shift) & ((1 << bitDepth) - 1), color = index * 3
+        if (color + 2 >= palette.length) throw new Error('Icon PNG contains an invalid palette index.')
+        out[dst] = palette[color]; out[dst + 1] = palette[color + 1]; out[dst + 2] = palette[color + 2]; out[dst + 3] = transparency && index < transparency.length ? transparency[index] : 255
+      } else if (colorType === 0 || colorType === 4) {
+        out[dst] = raw[src]; out[dst + 1] = raw[src]; out[dst + 2] = raw[src]
+        out[dst + 3] = colorType === 4 ? raw[src + 1] : 255
+      } else {
+        out[dst] = raw[src]; out[dst + 1] = raw[src + 1]; out[dst + 2] = raw[src + 2]; out[dst + 3] = channels === 4 ? raw[src + 3] : 255
+      }
     }
   }
   const chunk = (type, data) => {
