@@ -70,21 +70,21 @@ jobs:
           validate_payload "$rpm_root"
           rm -rf "$rpm_root"
           echo 'Debian and RPM packages contain the main process, CommonJS preload, renderer entry, desktop launcher and packaged icon asset.'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: success()
         with:
           name: paw-linux-deb-${{ github.sha }}
           path: release/*.deb
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: success()
         with:
           name: paw-linux-rpm-${{ github.sha }}
           path: release/*.rpm
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: success()
         with:
           name: paw-build-${{ github.sha }}
