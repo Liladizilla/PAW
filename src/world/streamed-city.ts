@@ -16,7 +16,14 @@ export type CityChunkStreamer = { update: (focus: Vector3, origin?: WorldOrigin)
 export function createCityChunkStreamer(scene: Scene, chunkSize = 64, radius = 2, worldRoot?: TransformNode): CityChunkStreamer {
   const loaded = new Map<string, LoadedChunk>()
   const makeChunk = (chunk: WorldChunk, origin: WorldOrigin): LoadedChunk | null => {
-    if (Math.abs(chunk.coord.x) <= 5 && Math.abs(chunk.coord.z) <= 5) return null
+    // Keep the four chunks that overlap the hand-authored central district empty,
+    // but populate the immediately adjacent blocks. A wide radius skip left the
+    // starting city surrounded by roads and empty lots until the camera travelled
+    // more than 320 units away.
+    const centralDistrict = { minX: -36, maxX: 36, minZ: -36, maxZ: 36 }
+    const overlapsCentralDistrict = chunk.minX < centralDistrict.maxX && chunk.maxX > centralDistrict.minX &&
+      chunk.minZ < centralDistrict.maxZ && chunk.maxZ > centralDistrict.minZ
+    if (overlapsCentralDistrict) return null
     const layout = planCityChunk(chunk)
     const root = new TransformNode(chunk.id + '-origin-root', scene)
     if (worldRoot) { root.parent = worldRoot; root.position.set(0, 0, 0) }

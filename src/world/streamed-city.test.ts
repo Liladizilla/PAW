@@ -168,3 +168,22 @@ test('sustained bidirectional travel keeps streamed resources bounded and return
     engine.dispose()
   }
 })
+
+test('streamer populates adjacent city blocks at the initial camera position', () => {
+  const engine = new NullEngine(), scene = new Scene(engine)
+  const streamer = createCityChunkStreamer(scene, 64, 2)
+  try {
+    streamer.update(Vector3.Zero())
+    const ids = streamer.loadedIds()
+    // The four chunks overlapping the hand-authored central district stay empty;
+    // the other 21 chunks in the initial 5x5 ring must be generated immediately.
+    assert.equal(ids.length, 21)
+    assert.ok(ids.some(id => id === 'chunk:-1:-2' || id === 'chunk:1:0' || id === 'chunk:0:1'))
+    assert.ok(streamer.stats().meshes > 0)
+    assert.ok(streamer.stats().materials > 0)
+  } finally {
+    streamer.dispose()
+    assert.deepEqual(streamer.stats(), { loadedChunks: 0, meshes: 0, materials: 0 })
+    scene.dispose(); engine.dispose()
+  }
+})
