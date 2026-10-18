@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import { deflateSync, inflateSync } from 'node:zlib'
 
 const root = process.cwd()
 const encoded = (await readFile(resolve(root, 'assets/paw-icon.png.base64'), 'utf8')).trim()
@@ -15,11 +16,68 @@ for (const [path, bytes] of output) { await mkdir(dirname(resolve(root, path)), 
 console.log('Prepared shared generated P.A.W. icon for renderer, Linux, Windows, and macOS.')
 
 function makeIco(image) {
+  // Windows requires an icon image of at least 256x256. Decode the checked-in
+  // PNG and upscale it deterministically, without relying on platform tools.
+  const scaled = resizePng(image, 256, 256)
   const header = Buffer.alloc(22)
   header.writeUInt16LE(0, 0); header.writeUInt16LE(1, 2); header.writeUInt16LE(1, 4)
-  header[6] = 64; header[7] = 64; header[8] = 0; header[9] = 0
-  header.writeUInt16LE(1, 10); header.writeUInt16LE(32, 12); header.writeUInt32LE(image.length, 14); header.writeUInt32LE(22, 18)
-  return Buffer.concat([header, image])
+  header[6] = 0; header[7] = 0; header[8] = 0; header[9] = 0
+  header.writeUInt16LE(1, 10); header.writeUInt16LE(32, 12); header.writeUInt32LE(scaled.length, 14); header.writeUInt32LE(22, 18)
+  return Buffer.concat([header, scaled])
+}
+function resizePng(input, targetWidth, targetHeight) {
+  const signature = input.subarray(0, 8)
+  const chunks = []
+  let width = 0, height = 0, bitDepth = 0, colorType = 0, interlace = 0
+  for (let offset = 8; offset < input.length;) {
+    const length = input.readUInt32BE(offset)
+    const type = input.toString('ascii', offset + 4, offset + 8)
+    const data = input.subarray(offset + 8, offset + 8 + length)
+    if (type === 'IHDR') { width = data.readUInt32BE(0); height = data.readUInt32BE(4); bitDepth = data[8]; colorType = data[9]; interlace = data[12] }
+    if (type === 'IDAT') chunks.push(data)
+    offset += 12 + length
+    if (type === 'IEND') break
+  }
+  if (!width || !height || bitDepth !== 8 || ![2, 6].includes(colorType) || interlace !== 0) throw new Error('Icon PNG must be non-interlaced 8-bit RGB or RGBA.')
+  const channels = colorType === 6 ? 4 : 3, stride = width * channels
+  const packed = inflateSync(Buffer.concat(chunks))
+  const raw = Buffer.alloc(height * stride)
+  let inputOffset = 0
+  for (let y = 0; y < height; y++) {
+    const filter = packed[inputOffset++], row = y * stride
+    for (let x = 0; x < stride; x++) {
+      const value = packed[inputOffset++], left = x >= channels ? raw[row + x - channels] : 0
+      const up = y ? raw[row - stride + x] : 0
+      const upperLeft = y && x >= channels ? raw[row - stride + x - channels] : 0
+      let predictor = 0
+      if (filter === 1) predictor = left
+      else if (filter === 2) predictor = up
+      else if (filter === 3) predictor = Math.floor((left + up) / 2)
+      else if (filter === 4) {
+        const p = left + up - upperLeft, a = Math.abs(p - left), b = Math.abs(p - up), c = Math.abs(p - upperLeft)
+        predictor = a <= b && a <= c ? left : b <= c ? up : upperLeft
+      } else if (filter !== 0) throw new Error('Unsupported PNG filter.')
+      raw[row + x] = (value + predictor) & 255
+    }
+  }
+  const out = Buffer.alloc(targetHeight * (targetWidth * 4 + 1))
+  for (let y = 0; y < targetHeight; y++) {
+    const row = y * (targetWidth * 4 + 1); out[row] = 0
+    const sy = Math.min(height - 1, Math.floor(y * height / targetHeight))
+    for (let x = 0; x < targetWidth; x++) {
+      const sx = Math.min(width - 1, Math.floor(x * width / targetWidth))
+      const src = sy * stride + sx * channels, dst = row + 1 + x * 4
+      out[dst] = raw[src]; out[dst + 1] = raw[src + 1]; out[dst + 2] = raw[src + 2]; out[dst + 3] = channels === 4 ? raw[src + 3] : 255
+    }
+  }
+  const chunk = (type, data) => {
+    const out = Buffer.alloc(data.length + 12); out.writeUInt32BE(data.length, 0); out.write(type, 4, 'ascii'); data.copy(out, 8)
+    let crc = 0xffffffff
+    for (const byte of out.subarray(4, 8 + data.length)) { crc ^= byte; for (let k = 0; k < 8; k++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0) }
+    out.writeUInt32BE((crc ^ 0xffffffff) >>> 0, 8 + data.length); return out
+  }
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(targetWidth, 0); ihdr.writeUInt32BE(targetHeight, 4); ihdr[8] = 8; ihdr[9] = 6
+  return Buffer.concat([signature, chunk('IHDR', ihdr), chunk('IDAT', deflateSync(out)), chunk('IEND', Buffer.alloc(0))])
 }
 function makeIcns(image) {
   const chunk = Buffer.alloc(8 + image.length)
