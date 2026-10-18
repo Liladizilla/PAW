@@ -41,9 +41,9 @@ function resizePng(input, targetWidth, targetHeight) {
     offset += 12 + length
     if (type === 'IEND') break
   }
-  if (!width || !height || bitDepth !== 8 || ![2, 3, 6].includes(colorType) || interlace !== 0) throw new Error('Icon PNG must be non-interlaced 8-bit RGB, indexed-color, or RGBA.')
+  if (!width || !height || bitDepth !== 8 || ![0, 2, 3, 4, 6].includes(colorType) || interlace !== 0) throw new Error('Icon PNG must be non-interlaced 8-bit grayscale, grayscale-alpha, RGB, indexed-color, or RGBA.')
   if (colorType === 3 && (!palette || palette.length < 3 || palette.length % 3 !== 0)) throw new Error('Indexed icon PNG is missing a valid color palette.')
-  const channels = colorType === 6 ? 4 : colorType === 3 ? 1 : 3, stride = width * channels
+  const channels = ({ 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 })[colorType], stride = width * channels
   const packed = inflateSync(Buffer.concat(chunks))
   const raw = Buffer.alloc(height * stride)
   let inputOffset = 0
@@ -75,6 +75,9 @@ function resizePng(input, targetWidth, targetHeight) {
         const index = raw[src], color = index * 3
         if (color + 2 >= palette.length) throw new Error('Icon PNG contains an invalid palette index.')
         out[dst] = palette[color]; out[dst + 1] = palette[color + 1]; out[dst + 2] = palette[color + 2]; out[dst + 3] = transparency && index < transparency.length ? transparency[index] : 255
+      } else if (colorType === 0 || colorType === 4) {
+        out[dst] = raw[src]; out[dst + 1] = raw[src]; out[dst + 2] = raw[src]
+        out[dst + 3] = colorType === 4 ? raw[src + 1] : 255
       } else {
         out[dst] = raw[src]; out[dst + 1] = raw[src + 1]; out[dst + 2] = raw[src + 2]; out[dst + 3] = channels === 4 ? raw[src + 3] : 255
       }
