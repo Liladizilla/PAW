@@ -35,6 +35,21 @@ jobs:
         run: npm run test:desktop-smoke
       - name: Build Linux desktop package
         run: npx electron-builder --linux deb --publish never
+      - name: Validate packaged Electron entry points
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="$(find release -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$package"
+          dpkg-deb --info "$package"
+          root="$(mktemp -d)"
+          trap 'rm -rf "$root"' EXIT
+          dpkg-deb --extract "$package" "$root"
+          find "$root" -type f -name 'index.js' -path '*/out/main/*' -print -quit | grep -q .
+          find "$root" -type f -name 'index.cjs' -path '*/out/preload/*' -print -quit | grep -q .
+          find "$root" -type f -path '*/out/renderer/index.html' -print -quit | grep -q .
+          find "$root" -type f -name 'paw-icon.png' -print -quit | grep -q .
+          echo 'Linux package contains the main process, CommonJS preload, renderer entry and P.A.W. icon.'
       - uses: actions/upload-artifact@v4
         if: success()
         with:
