@@ -272,3 +272,74 @@ body { background: #101113; }
 }
 
 .city-legend .legend-traffic { background: #e0b65f; }
+
+
+/* Precision workspace foundation: compact, flat and deterministic desktop-tool surfaces. */
+:root {
+  color-scheme: dark;
+  --bg: #181818;
+  --panel: #1d1d1d;
+  --border: #303030;
+  --muted: #929292;
+  --accent: #f2994a;
+  --mono: "JetBrains Mono", "DM Mono", ui-monospace, monospace;
+}
+html, body, #root { width: 100%; height: 100%; }
+body { min-width: 960px; min-height: 600px; background: #181818; }
+.app {
+  background: #181818;
+  grid-template-rows: 42px minmax(0, 1fr) 22px;
+}
+.top { gap: 16px; padding: 0 12px; background: #1b1b1b; }
+.brand { min-width: 180px; gap: 8px; }
+.brandicon {
+  width: 25px; height: 25px; border-radius: 4px;
+  background: #242424; border-color: #3b3b3b; color: #f2994a;
+}
+.brand b { font-size: 12px; letter-spacing: .08em; }
+.brand small { font-size: 8px; }
+.workspace-tag, .spatial { padding: 5px 7px; border-radius: 3px; }
+.rail { top: 42px; bottom: 22px; width: 42px; padding: 12px 6px; gap: 18px; background: #1b1b1b; }
+.rail svg { width: 16px; }
+.layout { padding-left: 42px; grid-template-columns: 205px minmax(360px, 1fr) 270px; }
+.left { padding: 13px 10px 8px; background: #1b1b1b; }
+.inspector { padding: 13px 10px 8px; background: #1b1b1b; }
+.eyebrow { font-size: 9px; letter-spacing: .08em; color: #999; }
+.left h1, .viewhead h2, .inspector h2 { font-size: 13px; font-weight: 600; }
+.search { height: 28px; margin: 12px 0 14px; border-radius: 3px; background: #181818; border-color: #383838; }
+.search:focus-within, .provider-input:focus { border-color: #f2994a; box-shadow: none; }
+.section { padding: 11px 1px 9px; border-color: #303030; }
+.section p { font-size: 11px; margin: 8px 0; }
+.agent { border-radius: 3px; padding: 7px 5px; margin-top: 2px; }
+.agent:hover { transform: none; background: #242424; }
+.agent.chosen { background: #29231e; border-color: #59402a; box-shadow: inset 2px 0 #f2994a; }
+.glyph { width: 25px; height: 25px; border-radius: 3px; background: #222; border-color: #383838; }
+.runtime, .object, .task, .approval-item { border-radius: 3px; background: #1d1d1d; border-color: #353535; }
+.runtime { padding: 9px 8px; }
+.viewhead { padding: 12px 14px 10px; border-color: #303030; }
+.viewhead h2 { font-size: 13px; letter-spacing: 0; }
+.scene { background: #181818; }
+.viewfoot { min-height: 24px; padding: 0 10px; border-color: #303030; font-size: 10px; }
+.object { padding: 9px 8px; border-radius: 3px; background: #202020; }
+.object > span { border-radius: 3px; background: #252525; border-color: #383838; }
+.provider-button { border-radius: 3px; padding: 7px 9px; background: #242424; border-color: #414141; }
+.provider-button:hover:not(:disabled) { transform: none; background: #2a2a2a; border-color: #f2994a; }
+.provider-button.primary { background: #35271c; border-color: #875326; color: #ffd1a3; }
+.provider-answer { border-radius: 3px; }
+.approval-item { padding: 9px; }
+.approval-item button { border-radius: 3px; }
+.status { min-height: 22px; border-radius: 0; border-color: #303030; background: #181818; font-size: 9px; }
+.execution-nodes { gap: 5px; margin-top: 8px; padding-top: 8px; border-color: #303030; }
+.execution-node { padding: 6px 7px; border-radius: 3px; background: #1b1b1b; border-color: #353535; }
+.node-state { border-radius: 3px; }
+.city-legend span { padding: 4px 6px; border-radius: 3px; background: #1d1d1d; border-color: #414141; font-size: 8px; }
+button, input, select, textarea { border-radius: 3px; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 1px solid #f2994a; outline-offset: 1px;
+}
+@media (max-width: 1250px) {
+  .layout { grid-template-columns: 190px minmax(320px, 1fr) 245px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
