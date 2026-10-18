@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   validate:
-    name: Typecheck, tests and build
+    name: Typecheck, tests, build and desktop smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +31,8 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+      - name: Electron renderer and WebGL smoke test
+        run: npm run test:desktop-smoke
       - uses: actions/upload-artifact@v4
         if: success()
         with:
