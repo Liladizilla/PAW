@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.paw.workspace</id>
+  <name>P.A.W. — Personal Agent Workspace</name>
+  <summary>Local-first spatial workspace for guarded agent workflows</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+  <developer id="dev.paw.workspace">
+    <name>Liladizilla</name>
+  </developer>
+  <description>
+    <p>P.A.W. is a desktop workspace for inspecting a spatial city view, organizing typed workflows, and reviewing execution history and approval records. The application is designed to keep workspace data and provider credentials on the local device.</p>
+    <p>The current early-development build supports deterministic local workflow nodes, run controls, persistent approval records, workspace snapshots, and optional Groq chat. Model-driven autonomous execution and external tool adapters are not yet available. The browser preview does not have access to desktop capabilities.</p>
+  </description>
+  <launchable type="desktop-id">dev.paw.workspace.desktop</launchable>
+  <url type="homepage">https://github.com/Liladizilla/PAW</url>
+  <url type="bugtracker">https://github.com/Liladizilla/PAW/issues</url>
+  <categories>
+    <category>Development</category>
+    <category>Utility</category>
+  </categories>
+  <keywords>
+    <keyword>agent</keyword>
+    <keyword>workflow</keyword>
+    <keyword>automation</keyword>
+    <keyword>local-first</keyword>
+  </keywords>
+</component>
