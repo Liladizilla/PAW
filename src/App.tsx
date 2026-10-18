@@ -315,7 +315,7 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
     const stationMark=MeshBuilder.CreateBox('metro-sign-amber',{width:1.7,height:.06,depth:.1},scene);stationMark.position.set(0,2.05,8.23);stationMark.material=material('metro-sign-amber-mat','#d8b57b','#745a30')
     // Ambient city simulation: civilians are not AI agents and never imply runtime work.
     // Thin instances keep a dense crowd inexpensive to render on integrated graphics.
-    type Pedestrian={index:number;axis:'x'|'z';fixed:number;dir:number;depth:number;lane:number;side:number;speed:number;x:number;z:number;mode:'queue'|'approach'|'cross'|'destination'|'return';batch:number}
+    type Pedestrian={index:number;axis:'x'|'z';fixed:number;dir:number;depth:number;lane:number;side:number;speed:number;x:number;z:number;mode:'queue'|'approach'|'cross'|'destination'|'return'|'roam';batch:number}
     const pedestrianCount=1008
     const hardwareThreads=typeof navigator!=='undefined'?(navigator.hardwareConcurrency||4):4
     let activePedestrianCount=hardwareThreads>=8?1008:hardwareThreads>=4?720:420
@@ -332,18 +332,22 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
     }
     const crowdBatches=[0,1,2].map(()=>({people:[] as Pedestrian[],bodies:[] as Matrix[],heads:[] as Matrix[],bodyData:new Float32Array(0),headData:new Float32Array(0)}))
     for(let i=0;i<pedestrianCount;i++){
-      const [axis,fixed]=crosswalks[i%4]
+      const [crossAxis,crossFixed]=crosswalks[i%4]
       const dir=(Math.floor(i/4)%2===0)?1:-1
       const row=Math.floor(i/8)
       const lane=((row%3)-1)*.38
       const depth=Math.floor(row/3)*.38
-      const side=fixed>0?1:-1
+      const side=crossFixed>0?1:-1
+      const roam=i%3===0
+      const axis=roam?(i%2===0?'x':'z'):crossAxis
+      const fixed=roam?(Math.round((Math.floor(i/3)%21)-10)*32+((i%2===0)?1:-1)*4.3):crossFixed
       const start=dir>0?-3.55:3.55
       const queueOffset=fixed+side*(.65+depth)
-      const x=axis==='x'?start:queueOffset
-      const z=axis==='z'?start:queueOffset
+      const along=-320+((i*37)%640)
+      const x=roam?(axis==='x'?along:fixed):(axis==='x'?start:queueOffset)
+      const z=roam?(axis==='z'?along:fixed):(axis==='z'?start:queueOffset)
       const batch=i%3
-      const person:Pedestrian={index:i,axis,fixed,dir,depth,lane,side,speed:1.05+(i%7)*.055,x,z,mode:'queue',batch}
+      const person:Pedestrian={index:i,axis,fixed,dir,depth,lane,side,speed:1.05+(i%7)*.055,x,z,mode:roam?'roam':'queue',batch}
       pedestrians.push(person);crowdBatches[batch].people.push(person)
     }
     const matrixFor=(x:number,y:number,z:number,yaw=0,scale=new Vector3(1,1,1))=>
@@ -426,7 +430,10 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         const end=-start
         const queueOffset=p.fixed+p.side*(.65+p.depth)
         let tx:number,tz:number
-        if(p.mode==='queue'){
+        if(p.mode==='roam'){
+          tx=p.axis==='x'?(p.dir>0?320:-320):p.fixed
+          tz=p.axis==='z'?(p.dir>0?320:-320):p.fixed
+        }else if(p.mode==='queue'){
           tx=p.axis==='x'?start:queueOffset;tz=p.axis==='z'?start:queueOffset
         }else if(p.mode==='approach'){
           tx=p.axis==='x'?start:p.fixed+p.lane;tz=p.axis==='z'?start:p.fixed+p.lane
@@ -440,7 +447,8 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
           tx=p.axis==='x'?end:queueOffset;tz=p.axis==='z'?end:queueOffset
         }
         const dx=tx-p.x,dz=tz-p.z,distance=Math.hypot(dx,dz)
-        if(distance<.12){
+        if(distance<(p.mode==='roam'?1.2:.12)){
+          if(p.mode==='roam'){p.dir*=-1;continue}
           if(p.mode==='queue')p.mode='approach'
           else if(p.mode==='approach'){if(walkAllowed)p.mode='cross'}
           else if(p.mode==='cross')p.mode='destination'
@@ -463,8 +471,14 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
           }
         }
         // Keep route-following pedestrians inside the clear crosswalk/sidewalk corridor beside the landmark blocks.
-        if(p.axis==='x'&&(p.mode==='destination'||p.mode==='return'))p.x=Math.max(-6,Math.min(6,p.x))
-        if(p.axis==='z'&&(p.mode==='destination'||p.mode==='return'))p.z=Math.max(-6,Math.min(6,p.z))
+        if(p.mode==='roam'){
+          if(p.axis==='x')p.z=p.fixed
+          else p.x=p.fixed
+          p.x=Math.max(-320,Math.min(320,p.x));p.z=Math.max(-320,Math.min(320,p.z))
+        }else{
+          if(p.axis==='x'&&(p.mode==='destination'||p.mode==='return'))p.x=Math.max(-6,Math.min(6,p.x))
+          if(p.axis==='z'&&(p.mode==='destination'||p.mode==='return'))p.z=Math.max(-6,Math.min(6,p.z))
+        }
       }
       for(let batch=0;batch<3;batch++){
         const group=crowdBatches[batch]
