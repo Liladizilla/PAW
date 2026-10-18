@@ -361,20 +361,24 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
       bodyTemplates[batch].thinInstanceCount=visibleCount
       headTemplates[batch].thinInstanceCount=visibleCount
     }
-    // Four traffic approaches; cars are kinematic and respect the signal plus a following gap.
-    type Vehicle={axis:'x'|'z';lane:number;dir:number;coordinate:number;speed:number;body:Mesh;cabin:Mesh}
+    // Traffic is distributed across the city grid, not just the central junction.
+    // Only the central street uses the signal controller; outer streets flow continuously.
+    type Vehicle={axis:'x'|'z';lane:number;street:number;dir:number;coordinate:number;speed:number;body:Mesh;cabin:Mesh}
     const vehicles:Vehicle[]=[]
     const carPaint=['#b8b5a8','#6f827f','#a37b54','#555f69']
     for(const axis of ['x','z'] as const){
-      for(const lane of [-.82,.82]){
-        for(let n=0;n<4;n++){
-          const dir=lane<0?1:-1
-          const coordinate=dir>0?-32+n*8:32-n*8
-          const body=MeshBuilder.CreateBox('traffic-car-'+axis+'-'+lane+'-'+n,{width:axis==='x'?1.55:.82,height:.48,depth:axis==='x'?.82:1.55},scene)
-          body.material=material('traffic-car-paint-'+axis+'-'+lane+'-'+n,carPaint[(n+(axis==='z'?1:0))%carPaint.length])
-          const cabin=MeshBuilder.CreateBox('traffic-cabin-'+axis+'-'+lane+'-'+n,{width:axis==='x'?.82:.55,height:.32,depth:axis==='x'?.55:.82},scene)
-          cabin.material=material('traffic-cabin-glass-'+axis+'-'+lane+'-'+n,'#68736f','#202a28')
-          vehicles.push({axis,lane,dir,coordinate,speed:2.3+(n%2)*.35,body,cabin})
+      for(let street=-320;street<=320;street+=64){
+        for(const lane of [-.82,.82]){
+          for(let n=0;n<3;n++){
+            const dir=lane<0?1:-1
+            const coordinate=dir>0?-30+n*18:30-n*18
+            const id='traffic-car-'+axis+'-'+street+'-'+lane+'-'+n
+            const body=MeshBuilder.CreateBox(id,{width:axis==='x'?1.55:.82,height:.48,depth:axis==='x'?.82:1.55},scene)
+            body.material=material(id+'-paint',carPaint[(n+(axis==='z'?1:0))%carPaint.length])
+            const cabin=MeshBuilder.CreateBox(id+'-cabin',{width:axis==='x'?.82:.55,height:.32,depth:axis==='x'?.55:.82},scene)
+            cabin.material=material(id+'-glass','#68736f','#202a28')
+            vehicles.push({axis,lane,street,dir,coordinate,speed:2.3+(n%2)*.35,body,cabin})
+          }
         }
       }
     }
@@ -579,15 +583,15 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         const allowed=(vehicle.axis==='x'&&phase==='x-green')||(vehicle.axis==='z'&&phase==='z-green')
         const current=vehicle.coordinate
         const stop=vehicle.dir>0?-5.3:5.3
-        const atStop=vehicle.dir>0?current>=stop:current<=stop
-        let blocked=!allowed&&atStop
-        if(allowed||!atStop){
+        const atStop=vehicle.street===0&&(vehicle.dir>0?current>=stop:current<=stop)
+        let blocked=vehicle.street===0&&!allowed&&atStop
+        if(allowed||!atStop||vehicle.street!==0){
           const next=current+vehicle.dir*vehicle.speed*dt
           if(!blocked){
             for(const other of vehicles){
-              if(other===vehicle||other.axis!==vehicle.axis||other.lane!==vehicle.lane||other.dir!==vehicle.dir)continue
+              if(other===vehicle||other.axis!==vehicle.axis||other.street!==vehicle.street||other.lane!==vehicle.lane||other.dir!==vehicle.dir)continue
               const gap=(other.coordinate-current)*vehicle.dir
-              if(gap>0&&gap<2.25){blocked=true;break}
+              if(gap>0&&gap<5.5){blocked=true;break}
             }
           }
           if(!blocked)vehicle.coordinate=next
@@ -595,9 +599,9 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         if(vehicle.coordinate>35)vehicle.coordinate=-35
         if(vehicle.coordinate< -35)vehicle.coordinate=35
         if(vehicle.axis==='x'){
-          vehicle.body.position.set(vehicle.coordinate,.38,vehicle.lane);vehicle.cabin.position.set(vehicle.coordinate,.75,vehicle.lane)
+          vehicle.body.position.set(vehicle.coordinate,.38,vehicle.street+vehicle.lane);vehicle.cabin.position.set(vehicle.coordinate,.75,vehicle.street+vehicle.lane)
         }else{
-          vehicle.body.position.set(vehicle.lane,.38,vehicle.coordinate);vehicle.cabin.position.set(vehicle.lane,.75,vehicle.coordinate)
+          vehicle.body.position.set(vehicle.street+vehicle.lane,.38,vehicle.coordinate);vehicle.cabin.position.set(vehicle.street+vehicle.lane,.75,vehicle.coordinate)
         }
       }
       updateCrowd(dt,isWalkPhase(phase))
