@@ -10,14 +10,17 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "package": "electron-vite build && electron-builder --publish never",
-    "package:linux": "electron-vite build && electron-builder --linux AppImage deb rpm --publish never",
-    "package:windows": "electron-vite build && electron-builder --win nsis --publish never",
-    "package:mac": "electron-vite build && electron-builder --mac dmg zip --publish never",
+    "package": "npm run prepare:icons && electron-vite build && electron-builder --publish never",
+    "package:linux": "npm run prepare:icons && electron-vite build && electron-builder --linux AppImage deb rpm --publish never",
+    "package:windows": "npm run prepare:icons && electron-vite build && electron-builder --win nsis --publish never",
+    "package:mac": "npm run prepare:icons && electron-vite build && electron-builder --mac dmg zip --publish never",
     "test": "tsx --test electron/*.test.ts src/runtime/*.test.ts src/world/*.test.ts && node --test scripts/*.test.mjs",
     "test:watch": "tsx --test --watch electron/*.test.ts src/runtime/*.test.ts src/world/*.test.ts",
     "test:desktop-smoke": "node scripts/desktop-smoke.mjs",
-    "verify:checksums": "node scripts/verify-checksums.mjs release"
+    "verify:checksums": "node scripts/verify-checksums.mjs release",
+    "prepare:icons": "node scripts/prepare-icons.mjs",
+    "predev": "npm run prepare:icons",
+    "prebuild": "npm run prepare:icons"
   },
   "dependencies": {
     "@babylonjs/core": "^8.20.0",
@@ -47,7 +50,8 @@
     },
     "files": [
       "out/**/*",
-      "package.json"
+      "package.json",
+      "build/icons/paw-icon.png"
     ],
     "linux": {
       "target": [
@@ -56,19 +60,22 @@
         "rpm"
       ],
       "category": "Development",
-      "maintainer": "Liladizilla <151440626+Liladizilla@users.noreply.github.com>"
+      "maintainer": "Liladizilla <151440626+Liladizilla@users.noreply.github.com>",
+      "icon": "build/icons/paw-icon.png"
     },
     "win": {
       "target": [
         "nsis"
       ],
-      "artifactName": "${productName}.Setup.${version}.${ext}"
+      "artifactName": "${productName}.Setup.${version}.${ext}",
+      "icon": "build/icons/paw-icon.ico"
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
-      ]
+      ],
+      "icon": "build/icons/paw-icon.icns"
     }
   },
   "main": "out/main/index.js"
