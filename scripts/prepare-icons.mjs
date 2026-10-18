@@ -17,13 +17,13 @@ console.log('Prepared shared generated P.A.W. icon for renderer, Linux, Windows,
 function makeIco(image) {
   const header = Buffer.alloc(22)
   header.writeUInt16LE(0, 0); header.writeUInt16LE(1, 2); header.writeUInt16LE(1, 4)
-  header[6] = 0; header[7] = 0; header[8] = 0; header[9] = 0
+  header[6] = 128; header[7] = 128; header[8] = 0; header[9] = 0
   header.writeUInt16LE(1, 10); header.writeUInt16LE(32, 12); header.writeUInt32LE(image.length, 14); header.writeUInt32LE(22, 18)
   return Buffer.concat([header, image])
 }
 function makeIcns(image) {
   const chunk = Buffer.alloc(8 + image.length)
-  chunk.write('ic08', 0, 'ascii'); chunk.writeUInt32BE(chunk.length, 4); image.copy(chunk, 8)
+  chunk.write('ic07', 0, 'ascii'); chunk.writeUInt32BE(chunk.length, 4); image.copy(chunk, 8)
   const header = Buffer.alloc(8); header.write('icns', 0, 'ascii'); header.writeUInt32BE(header.length + chunk.length, 4)
   return Buffer.concat([header, chunk])
 }
