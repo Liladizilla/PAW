@@ -4,7 +4,15 @@ import { resolve } from 'node:path'
 
 export default defineConfig({
   main: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: { index: resolve('electron/main.ts') } } } },
-  preload: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: { index: resolve('electron/preload.ts') } } } },
+  preload: {
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        input: { index: resolve('electron/preload.ts') },
+        output: { format: 'cjs', entryFileNames: '[name].cjs' }
+      }
+    }
+  },
   renderer: {
     root: resolve('.'),
     // Packaged Electron windows load this entry point from file://. Absolute asset URLs
