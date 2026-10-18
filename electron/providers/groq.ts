@@ -3,7 +3,7 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const keyFile = () => join(app.getPath("userData"), "paw", "providers", "groq-key.enc");
-const defaultModel = "llama-3.3-70b-versatile";
+const defaultModel = "openai/gpt-oss-120b";
 const maxPromptChars = 32_000;
 
 function requireSecureStorage() {
@@ -74,11 +74,23 @@ export async function groqChat(input: { prompt: string; system?: string; model?:
     signal: AbortSignal.timeout(60_000)
   });
   if (!response.ok) {
-    const message = response.status === 401 ? "Groq rejected the API key." :
+    let providerMessage = "";
+    try {
+      const body: unknown = await response.json();
+      if (body && typeof body === "object") {
+        const error = (body as { error?: { message?: unknown; code?: unknown; type?: unknown } }).error;
+        if (error && typeof error.message === "string") {
+          providerMessage = error.message.slice(0, 500);
+          if (typeof error.code === "string") providerMessage += ` (code: ${error.code})`;
+        }
+      }
+    } catch { /* The provider may return a non-JSON error body. */ }
+    const message = response.status === 401 ? "Groq rejected the API key. Check the key in provider settings." :
       response.status === 429 ? "Groq rate limit reached. Try again later." :
       response.status >= 500 ? "Groq is temporarily unavailable." :
+      response.status === 404 ? `Groq could not find or grant access to model "${model}". Check the model ID and your Groq account access.` :
       `Groq request failed with HTTP ${response.status}.`;
-    throw new Error(message);
+    throw new Error(providerMessage ? `${message} Provider detail: ${providerMessage}` : message);
   }
   const result: unknown = await response.json();
   if (!result || typeof result !== "object") throw new Error("Groq returned an invalid response.");
