@@ -1,4 +1,5 @@
 import { app, safeStorage } from "electron";
+import { isValidGroqModelId } from "../groq-model";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -61,7 +62,7 @@ export async function groqChat(input: { prompt: string; system?: string; model?:
   const apiKey = await readKey();
   if (!apiKey) throw new Error("Groq is not configured. Add a key in provider settings first.");
   const model = input.model?.trim() || defaultModel;
-  if (!/^[a-zA-Z0-9._:-]{1,120}$/.test(model)) throw new Error("Invalid model identifier.");
+  if (!isValidGroqModelId(model)) throw new Error("Invalid model identifier.");
 
   const messages = [
     ...(input.system ? [{ role: "system", content: input.system }] : []),
