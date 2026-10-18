@@ -48,8 +48,10 @@ jobs:
           find "$root" -type f -name 'index.js' -path '*/out/main/*' -print -quit | grep -q .
           find "$root" -type f -name 'index.cjs' -path '*/out/preload/*' -print -quit | grep -q .
           find "$root" -type f -path '*/out/renderer/index.html' -print -quit | grep -q .
-          find "$root" -type f -name 'paw-icon.png' -print -quit | grep -q .
-          echo 'Linux package contains the main process, CommonJS preload, renderer entry and P.A.W. icon.'
+          find "$root" -type f -path '*/resources/app.asar' -print -quit | grep -q .
+          find "$root" -type f -path '*/usr/share/applications/*.desktop' -print -quit | grep -q .
+          find "$root" -type f \( -path '*/usr/share/icons/*' -o -path '*/resources/*' \) \( -iname '*.png' -o -iname '*.icns' -o -iname '*.ico' \) -print -quit | grep -q .
+          echo 'Linux package contains the main process, CommonJS preload, renderer entry, app archive, desktop launcher and packaged icon asset.'
       - uses: actions/upload-artifact@v4
         if: success()
         with:
