@@ -33,6 +33,15 @@ jobs:
         run: npm run build
       - name: Electron renderer and WebGL smoke test
         run: npm run test:desktop-smoke
+      - name: Build Linux desktop package
+        run: npx electron-builder --linux deb --publish never
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: paw-linux-deb-${{ github.sha }}
+          path: release/*.deb
+          if-no-files-found: error
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         if: success()
         with:
