@@ -10,7 +10,7 @@ test('browser preview installs a read-only bridge instead of crashing renderer s
   assert.equal((await target.paw.providerStatus()).configured, false)
   assert.deepEqual(await target.paw.listApprovals('pending'), [])
   assert.deepEqual(await target.paw.listHistory(12), [])
-  assert.equal(target.paw.desktopSmokeReady, undefined)
+  assert.equal((target.paw as unknown as { desktopSmokeReady?: () => Promise<unknown> }).desktopSmokeReady, undefined)
 })
 
 test('browser preview never grants privileged actions', async () => {
