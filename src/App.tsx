@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, Boxes, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, RotateCcw, Search, Send, Settings2, ShieldCheck, TerminalSquare, Upload, Workflow } from 'lucide-react'
+import { Activity, BrainCircuit, Cpu, KeyRound, Layers3, Maximize2, Network, RotateCcw, Search, Send, Settings2, ShieldCheck, TerminalSquare, Upload, Workflow } from 'lucide-react'
 import { Color3, Curve3, DirectionalLight, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, StandardMaterial, TransformNode, Vector3 } from '@babylonjs/core'
 import { createEngineHost } from './world/engine-host'
 import { createCityChunkStreamer } from './world/streamed-city'
@@ -25,6 +25,7 @@ import { PerformanceMonitor, type PerformanceSnapshot } from './world/performanc
 import { evaluatePerformanceBudget } from './world/performance-budget'
 import { demoGraph } from './runtime/demo-graph'
 import { generateCityLots } from './world/city-layout'
+import { getDesktopSmokeReady } from './runtime/desktop-bridge'
 
 type Agent = { id:string; name:string; role:string; color:string; x:number; z:number; state:string; task:string }
 type RunRecord = Awaited<ReturnType<typeof window.paw.createRun>>
@@ -46,7 +47,7 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
     // CI smoke mode exercises the real Electron renderer and Babylon WebGL lifecycle
     // without constructing the full procedural city, which is intentionally expensive
     // on software-rendered GitHub-hosted Linux runners.
-    const smokeReady=(window.paw as unknown as {desktopSmokeReady?:()=>Promise<unknown>}).desktopSmokeReady
+    const smokeReady=getDesktopSmokeReady(window.paw)
     if(smokeReady){
       const smokeMesh=MeshBuilder.CreateBox('paw-desktop-smoke-mesh',{size:1},scene)
       smokeMesh.position.set(0,0,0)
@@ -314,7 +315,7 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
     const stationMark=MeshBuilder.CreateBox('metro-sign-amber',{width:1.7,height:.06,depth:.1},scene);stationMark.position.set(0,2.05,8.23);stationMark.material=material('metro-sign-amber-mat','#d8b57b','#745a30')
     // Ambient city simulation: civilians are not AI agents and never imply runtime work.
     // Thin instances keep a dense crowd inexpensive to render on integrated graphics.
-    type Pedestrian={index:number;axis:'x'|'z';fixed:number;dir:number;depth:number;lane:number;side:number;speed:number;x:number;z:number;mode:'queue'|'approach'|'cross'|'destination'|'return';batch:number}
+    type Pedestrian={index:number;axis:'x'|'z';fixed:number;dir:number;depth:number;lane:number;side:number;speed:number;x:number;z:number;mode:'queue'|'approach'|'cross'|'destination'|'return'|'roam';batch:number}
     const pedestrianCount=1008
     const hardwareThreads=typeof navigator!=='undefined'?(navigator.hardwareConcurrency||4):4
     let activePedestrianCount=hardwareThreads>=8?1008:hardwareThreads>=4?720:420
@@ -331,18 +332,22 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
     }
     const crowdBatches=[0,1,2].map(()=>({people:[] as Pedestrian[],bodies:[] as Matrix[],heads:[] as Matrix[],bodyData:new Float32Array(0),headData:new Float32Array(0)}))
     for(let i=0;i<pedestrianCount;i++){
-      const [axis,fixed]=crosswalks[i%4]
+      const [crossAxis,crossFixed]=crosswalks[i%4]
       const dir=(Math.floor(i/4)%2===0)?1:-1
       const row=Math.floor(i/8)
       const lane=((row%3)-1)*.38
       const depth=Math.floor(row/3)*.38
-      const side=fixed>0?1:-1
+      const side=crossFixed>0?1:-1
+      const roam=i%3===0
+      const axis=roam?(i%2===0?'x':'z'):crossAxis
+      const fixed=roam?(Math.round((Math.floor(i/3)%21)-10)*32+((i%2===0)?1:-1)*4.3):crossFixed
       const start=dir>0?-3.55:3.55
       const queueOffset=fixed+side*(.65+depth)
-      const x=axis==='x'?start:queueOffset
-      const z=axis==='z'?start:queueOffset
+      const along=-320+((i*37)%640)
+      const x=roam?(axis==='x'?along:fixed):(axis==='x'?start:queueOffset)
+      const z=roam?(axis==='z'?along:fixed):(axis==='z'?start:queueOffset)
       const batch=i%3
-      const person:Pedestrian={index:i,axis,fixed,dir,depth,lane,side,speed:1.05+(i%7)*.055,x,z,mode:'queue',batch}
+      const person:Pedestrian={index:i,axis,fixed,dir,depth,lane,side,speed:1.05+(i%7)*.055,x,z,mode:roam?'roam':'queue',batch}
       pedestrians.push(person);crowdBatches[batch].people.push(person)
     }
     const matrixFor=(x:number,y:number,z:number,yaw=0,scale=new Vector3(1,1,1))=>
@@ -360,20 +365,24 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
       bodyTemplates[batch].thinInstanceCount=visibleCount
       headTemplates[batch].thinInstanceCount=visibleCount
     }
-    // Four traffic approaches; cars are kinematic and respect the signal plus a following gap.
-    type Vehicle={axis:'x'|'z';lane:number;dir:number;coordinate:number;speed:number;body:Mesh;cabin:Mesh}
+    // Traffic is distributed across the city grid, not just the central junction.
+    // Only the central street uses the signal controller; outer streets flow continuously.
+    type Vehicle={axis:'x'|'z';lane:number;street:number;dir:number;coordinate:number;speed:number;body:Mesh;cabin:Mesh}
     const vehicles:Vehicle[]=[]
     const carPaint=['#b8b5a8','#6f827f','#a37b54','#555f69']
     for(const axis of ['x','z'] as const){
-      for(const lane of [-.82,.82]){
-        for(let n=0;n<4;n++){
-          const dir=lane<0?1:-1
-          const coordinate=dir>0?-32+n*8:32-n*8
-          const body=MeshBuilder.CreateBox('traffic-car-'+axis+'-'+lane+'-'+n,{width:axis==='x'?1.55:.82,height:.48,depth:axis==='x'?.82:1.55},scene)
-          body.material=material('traffic-car-paint-'+axis+'-'+lane+'-'+n,carPaint[(n+(axis==='z'?1:0))%carPaint.length])
-          const cabin=MeshBuilder.CreateBox('traffic-cabin-'+axis+'-'+lane+'-'+n,{width:axis==='x'?.82:.55,height:.32,depth:axis==='x'?.55:.82},scene)
-          cabin.material=material('traffic-cabin-glass-'+axis+'-'+lane+'-'+n,'#68736f','#202a28')
-          vehicles.push({axis,lane,dir,coordinate,speed:2.3+(n%2)*.35,body,cabin})
+      for(let street=-320;street<=320;street+=64){
+        for(const lane of [-.82,.82]){
+          for(let n=0;n<3;n++){
+            const dir=lane<0?1:-1
+            const coordinate=dir>0?-300+n*300:300-n*300
+            const id='traffic-car-'+axis+'-'+street+'-'+lane+'-'+n
+            const body=MeshBuilder.CreateBox(id,{width:axis==='x'?1.55:.82,height:.48,depth:axis==='x'?.82:1.55},scene)
+            body.material=material(id+'-paint',carPaint[(n+(axis==='z'?1:0))%carPaint.length])
+            const cabin=MeshBuilder.CreateBox(id+'-cabin',{width:axis==='x'?.82:.55,height:.32,depth:axis==='x'?.55:.82},scene)
+            cabin.material=material(id+'-glass','#68736f','#202a28')
+            vehicles.push({axis,lane,street,dir,coordinate,speed:2.3+(n%2)*.35,body,cabin})
+          }
         }
       }
     }
@@ -421,7 +430,10 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         const end=-start
         const queueOffset=p.fixed+p.side*(.65+p.depth)
         let tx:number,tz:number
-        if(p.mode==='queue'){
+        if(p.mode==='roam'){
+          tx=p.axis==='x'?(p.dir>0?320:-320):p.fixed
+          tz=p.axis==='z'?(p.dir>0?320:-320):p.fixed
+        }else if(p.mode==='queue'){
           tx=p.axis==='x'?start:queueOffset;tz=p.axis==='z'?start:queueOffset
         }else if(p.mode==='approach'){
           tx=p.axis==='x'?start:p.fixed+p.lane;tz=p.axis==='z'?start:p.fixed+p.lane
@@ -435,7 +447,8 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
           tx=p.axis==='x'?end:queueOffset;tz=p.axis==='z'?end:queueOffset
         }
         const dx=tx-p.x,dz=tz-p.z,distance=Math.hypot(dx,dz)
-        if(distance<.12){
+        if(distance<(p.mode==='roam'?1.2:.12)){
+          if(p.mode==='roam'){p.dir*=-1;continue}
           if(p.mode==='queue')p.mode='approach'
           else if(p.mode==='approach'){if(walkAllowed)p.mode='cross'}
           else if(p.mode==='cross')p.mode='destination'
@@ -458,8 +471,14 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
           }
         }
         // Keep route-following pedestrians inside the clear crosswalk/sidewalk corridor beside the landmark blocks.
-        if(p.axis==='x'&&(p.mode==='destination'||p.mode==='return'))p.x=Math.max(-6,Math.min(6,p.x))
-        if(p.axis==='z'&&(p.mode==='destination'||p.mode==='return'))p.z=Math.max(-6,Math.min(6,p.z))
+        if(p.mode==='roam'){
+          if(p.axis==='x')p.z=p.fixed
+          else p.x=p.fixed
+          p.x=Math.max(-320,Math.min(320,p.x));p.z=Math.max(-320,Math.min(320,p.z))
+        }else{
+          if(p.axis==='x'&&(p.mode==='destination'||p.mode==='return'))p.x=Math.max(-6,Math.min(6,p.x))
+          if(p.axis==='z'&&(p.mode==='destination'||p.mode==='return'))p.z=Math.max(-6,Math.min(6,p.z))
+        }
       }
       for(let batch=0;batch<3;batch++){
         const group=crowdBatches[batch]
@@ -578,25 +597,25 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
         const allowed=(vehicle.axis==='x'&&phase==='x-green')||(vehicle.axis==='z'&&phase==='z-green')
         const current=vehicle.coordinate
         const stop=vehicle.dir>0?-5.3:5.3
-        const atStop=vehicle.dir>0?current>=stop:current<=stop
-        let blocked=!allowed&&atStop
-        if(allowed||!atStop){
+        const atStop=vehicle.street===0&&(vehicle.dir>0?current>=stop:current<=stop)
+        let blocked=vehicle.street===0&&!allowed&&atStop
+        if(allowed||!atStop||vehicle.street!==0){
           const next=current+vehicle.dir*vehicle.speed*dt
           if(!blocked){
             for(const other of vehicles){
-              if(other===vehicle||other.axis!==vehicle.axis||other.lane!==vehicle.lane||other.dir!==vehicle.dir)continue
+              if(other===vehicle||other.axis!==vehicle.axis||other.street!==vehicle.street||other.lane!==vehicle.lane||other.dir!==vehicle.dir)continue
               const gap=(other.coordinate-current)*vehicle.dir
-              if(gap>0&&gap<2.25){blocked=true;break}
+              if(gap>0&&gap<5.5){blocked=true;break}
             }
           }
           if(!blocked)vehicle.coordinate=next
         }
-        if(vehicle.coordinate>35)vehicle.coordinate=-35
-        if(vehicle.coordinate< -35)vehicle.coordinate=35
+        if(vehicle.coordinate>320)vehicle.coordinate=-320
+        if(vehicle.coordinate< -320)vehicle.coordinate=320
         if(vehicle.axis==='x'){
-          vehicle.body.position.set(vehicle.coordinate,.38,vehicle.lane);vehicle.cabin.position.set(vehicle.coordinate,.75,vehicle.lane)
+          vehicle.body.position.set(vehicle.coordinate,.38,vehicle.street+vehicle.lane);vehicle.cabin.position.set(vehicle.coordinate,.75,vehicle.street+vehicle.lane)
         }else{
-          vehicle.body.position.set(vehicle.lane,.38,vehicle.coordinate);vehicle.cabin.position.set(vehicle.lane,.75,vehicle.coordinate)
+          vehicle.body.position.set(vehicle.street+vehicle.lane,.38,vehicle.coordinate);vehicle.cabin.position.set(vehicle.street+vehicle.lane,.75,vehicle.coordinate)
         }
       }
       updateCrowd(dt,isWalkPhase(phase))
@@ -644,7 +663,7 @@ function World({onSelect,selected,cameraControl,onDiagnostics,onAssetRestoreStat
     scene.onPointerObservable.add(info=>{if(info.type!==1)return;const pick=scene.pick(scene.pointerX,scene.pointerY,m=>typeof m.metadata?.agentId==='string');const id=pick?.pickedMesh?.metadata?.agentId;if(typeof id==='string')onSelect(id)})
     scene.meshes.forEach(mesh=>{if(!mesh.parent)mesh.parent=worldRoot})
     scene.lights.forEach(light=>{if(!light.parent)light.parent=worldRoot})
-    engine.runRenderLoop(()=>scene.render());scene.executeWhenReady(()=>{const smokeReady=(window.paw as unknown as {desktopSmokeReady?:()=>Promise<unknown>}).desktopSmokeReady;if(smokeReady)void smokeReady()});const resize=()=>engine.resize();window.addEventListener('resize',resize)
+    engine.runRenderLoop(()=>scene.render());scene.executeWhenReady(()=>{const smokeReady=getDesktopSmokeReady(window.paw);if(smokeReady)void smokeReady()});const resize=()=>engine.resize();window.addEventListener('resize',resize)
     return()=>{
       try{persistSceneSnapshot()}catch(error){console.warn('P.A.W. could not persist the scene view.',error)}
       sceneDisposed=true;onDiagnostics(null);cameraControl.current=null;window.removeEventListener('resize',resize);importedEntityDisposers.forEach(dispose=>dispose());cityStreamer.dispose();host.dispose()
@@ -657,6 +676,7 @@ export default function App(){
   const [importMessage,setImportMessage]=useState('Import a self-contained GLB model into the local workspace.')
   const [importBusy,setImportBusy]=useState(false)
   const [diagnostics,setDiagnostics]=useState<PerformanceSnapshot|null>(null)
+  const desktopBridgeAvailable=typeof window!=='undefined'&&typeof window.paw?.platform==='string'&&window.paw.platform!=='browser-preview'
   const [selected,setSelected]=useState('orchestrator');const [query,setQuery]=useState('')
   const [providerConfigured,setProviderConfigured]=useState(false)
   const [apiKey,setApiKey]=useState('')
@@ -772,11 +792,11 @@ export default function App(){
   const budgetViolations=diagnostics?evaluatePerformanceBudget({fps:diagnostics.averageFps,p95FrameMs:diagnostics.p95FrameMs,meshes:diagnostics.meshes,materials:diagnostics.materials,loadedChunks:diagnostics.loadedChunks,activePedestrians:diagnostics.activePedestrians}):[]
   const active=agents.find(a=>a.id===selected)??agents[0]
   return <main className="app">
-    <header className="top"><div className="brand"><span className="brandicon"><Boxes size={21}/></span><div><b>P.A.W.</b><small>PERSONAL AGENT WORKSPACE</small></div></div><span className="workspace-tag"><i/> LOCAL WORKSPACE</span><div className="topright"><Settings2 size={16}/><span className="avatar">P</span></div></header>
-    <nav className="rail"><Network/><Cpu/><Workflow/><BrainCircuit/><TerminalSquare/><div className="spacer"/><ShieldCheck/></nav>
-    <section className="layout"><aside className="left"><div className="eyebrow">WORKSPACE</div><h1>Agent network</h1><label className="search"><Search size={14}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find agents"/></label><div className="eyebrow section">NETWORK OBJECTS <span>{agents.length.toString().padStart(2,'0')}</span></div>{agents.filter(a=>(a.name+a.role).toLowerCase().includes(query.toLowerCase())).map(a=><button key={a.id} className={'agent '+(selected===a.id?'chosen':'')} onClick={()=>select(a.id)}><span className="glyph" style={{color:a.color}}><Cpu size={16}/></span><span><b>{a.name}</b><small>{a.role}</small></span><i className={a.state.toLowerCase()}/></button>)}<div className="runtime"><div className="eyebrow">RUNTIME STATUS</div><b><Activity size={15}/> Local executor available</b><small>Deterministic typed nodes run in the desktop main process. External tools remain unavailable unless registered behind policy.</small><button className="provider-button primary" onClick={runDemo} disabled={runBusy||!!(activeRun&&['queued','running','pause_requested','paused','cancel_requested'].includes(activeRun.status))}>{runBusy?'Starting…':'Run local smoke test'}</button><small>{runMessage}</small><div className="execution-nodes" aria-label="Live demo graph execution status"><div className="eyebrow">DEMO GRAPH NODES</div>{demoGraph.nodes.map(node=>{const status=nodeStatuses.get(node.id)??(activeRun?'waiting':'not run');return <div className="execution-node" key={node.id}><span><b>{node.label??node.id}</b><small>{node.type}</small></span><i className={'node-state '+status.replace(' ','-')}>{status.toUpperCase()}</i></div>})}</div>{activeRun&&<><small>RUN {activeRun.id.slice(0,8)} · {activeRun.status.toUpperCase()}</small>{activeRun&&['running','pause_requested'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('pause')}>Pause</button>}{activeRun&&activeRun.status==='paused'&&<button className="provider-button" onClick={()=>void controlRun('resume')}>Resume</button>}{activeRun&&['running','pause_requested','paused'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('cancel')}>Cancel run</button>}</>}</div></aside>
+    <header className="top"><div className="brand"><span className="brandicon" aria-label="P.A.W. paw mark"><img src="./paw-icon.png" alt="" /></span><div><b>P.A.W.</b><small>PERSONAL AGENT WORKSPACE</small></div></div><span className="workspace-tag"><i/> {desktopBridgeAvailable?'LOCAL WORKSPACE':'ISOLATED BROWSER PREVIEW'}</span><div className="topright"><button className="camera-control" onClick={()=>document.querySelector(".provider-panel")?.scrollIntoView({behavior:"smooth",block:"center"})} title="Jump to provider settings" aria-label="Jump to provider settings"><Settings2 size={16}/></button><span className="avatar" title="P means Personal workspace. P.A.W. does not have user accounts or profile settings yet." aria-label="Personal workspace, no account system">P</span></div></header>
+    <nav className="rail" aria-label="Workspace navigation"><button title="Agent network" aria-label="Agent network" onClick={()=>document.querySelector(".left")?.scrollIntoView({behavior:"smooth",block:"start"})}><Network/></button><button title="Runtime and agents" aria-label="Runtime and agents" onClick={()=>document.querySelector(".runtime")?.scrollIntoView({behavior:"smooth",block:"center"})}><Cpu/></button><button title="Workflow execution" aria-label="Workflow execution" onClick={()=>document.querySelector(".execution-nodes")?.scrollIntoView({behavior:"smooth",block:"center"})}><Workflow/></button><button title="Model provider" aria-label="Model provider" onClick={()=>document.querySelector(".provider-panel")?.scrollIntoView({behavior:"smooth",block:"center"})}><BrainCircuit/></button><button title="Run history and events" aria-label="Run history and events" onClick={()=>document.querySelector(".inspector")?.scrollIntoView({behavior:"smooth",block:"start"})}><TerminalSquare/></button><div className="spacer"/><button title="Approvals and security" aria-label="Approvals and security" onClick={()=>document.querySelector(".approval-panel")?.scrollIntoView({behavior:"smooth",block:"center"})}><ShieldCheck/></button></nav>
+    <section className="layout"><aside className="left"><div className="eyebrow">WORKSPACE</div><h1>Agent network</h1><label className="search"><Search size={14}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find agents"/></label><div className="eyebrow section">NETWORK OBJECTS <span>{agents.length.toString().padStart(2,'0')}</span></div>{agents.filter(a=>(a.name+a.role).toLowerCase().includes(query.toLowerCase())).map(a=><button key={a.id} className={'agent '+(selected===a.id?'chosen':'')} onClick={()=>select(a.id)}><span className="glyph" style={{color:a.color}}><Cpu size={16}/></span><span><b>{a.name}</b><small>{a.role}</small></span><i className={a.state.toLowerCase()}/></button>)}<div className="runtime"><div className="eyebrow">RUNTIME STATUS</div><b><Activity size={15}/> {desktopBridgeAvailable?'Local executor available':'Desktop runtime unavailable'}</b><small>{desktopBridgeAvailable?'Deterministic typed nodes run in the desktop main process. External tools remain unavailable unless registered behind policy.':'This browser preview can inspect the workspace UI, but cannot access the guarded desktop executor, local files, or OS credential storage.'}</small><button className="provider-button primary" onClick={runDemo} disabled={!desktopBridgeAvailable||runBusy||!!(activeRun&&['queued','running','pause_requested','paused','cancel_requested'].includes(activeRun.status))}>{runBusy?'Starting…':desktopBridgeAvailable?'Run local smoke test':'Desktop app required'}</button><small>{runMessage}</small><div className="execution-nodes" aria-label="Live demo graph execution status"><div className="eyebrow">DEMO GRAPH NODES</div>{demoGraph.nodes.map(node=>{const status=nodeStatuses.get(node.id)??(activeRun?'waiting':'not run');return <div className="execution-node" key={node.id}><span><b>{node.label??node.id}</b><small>{node.type}</small></span><i className={'node-state '+status.replace(' ','-')}>{status.toUpperCase()}</i></div>})}</div>{activeRun&&<><small>RUN {activeRun.id.slice(0,8)} · {activeRun.status.toUpperCase()}</small>{activeRun&&['running','pause_requested'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('pause')}>Pause</button>}{activeRun&&activeRun.status==='paused'&&<button className="provider-button" onClick={()=>void controlRun('resume')}>Resume</button>}{activeRun&&['running','pause_requested','paused'].includes(activeRun.status)&&<button className="provider-button" onClick={()=>void controlRun('cancel')}>Cancel run</button>}</>}</div></aside>
     <section className="viewport"><div className="viewhead"><div><div className="eyebrow">SPATIAL WORKSPACE / METROPOLITAN GRID</div><h2>Agent City</h2></div><div className="spatial"><Layers3 size={13}/> SPATIAL <button className="camera-control" onClick={()=>cameraControl.current?.focus(selected)} title="Focus selected agent" aria-label="Focus selected agent"><Maximize2 size={14}/></button><button className="camera-control reset-view" onClick={()=>cameraControl.current?.reset()} title="Reset camera" aria-label="Reset camera"><RotateCcw size={13}/></button><button className="camera-control" onClick={()=>void importModel()} disabled={importBusy} title="Import a GLB model" aria-label="Import a GLB model"><Upload size={14}/></button></div></div><div className="scene"><World onSelect={select} selected={selected} cameraControl={cameraControl} onDiagnostics={setDiagnostics} onAssetRestoreStatus={setImportMessage}/><div className="scene-label">CENTRAL DISTRICT / {agents.length} AI AGENTS · 1,008 PEDESTRIAN CAPACITY</div><div className="city-legend"><span><i className="legend-metro"/>METRO HUB</span><span><i className="legend-research"/>RESEARCH</span><span><i className="legend-build"/>ENGINEERING</span><span><i className="legend-review"/>REVIEW</span><span><i className="legend-traffic"/>SIGNAL-CONTROLLED TRAFFIC</span></div><div className="hint">Drag to orbit · Scroll to zoom · Select an agent to inspect</div></div><footer className="viewfoot"><span>GRAPH <b>{activeRun?.status?.toUpperCase()??'IDLE'}</b></span><span>NODES <b>{demoGraph.nodes.length.toString().padStart(2,'0')}</b></span><span className="spacer"/><span title={importMessage}>{importBusy?'IMPORTING MODEL':importMessage}</span> · {diagnostics?<>FPS <b>{Math.round(diagnostics.averageFps)}</b> · P95 <b>{diagnostics.p95FrameMs.toFixed(1)} ms</b> · MESHES <b>{diagnostics.meshes}</b> · CHUNKS <b>{diagnostics.loadedChunks}</b> · CROWD <b>{diagnostics.activePedestrians}</b></>:'MEASURING RENDERER'} · BUDGET <b>{diagnostics?(budgetViolations.length?'OVER LIMIT':'WITHIN LIMIT'):'PENDING'}</b> · CITY <b>PROCEDURAL GRID</b> · CAMERA <b>FREE</b></footer></section>
     <aside className="inspector"><div className="eyebrow">OBJECT INSPECTOR</div><h2>Agent details</h2><div className="object"><span style={{color:active.color}}><Cpu size={24}/></span><div><b>{active.name}</b><small>{active.role}</small></div><i>{active.state}</i></div><div className="section"><div className="eyebrow">IDENTITY</div><p><span>Node ID</span><code>{active.id}</code></p><p><span>Execution</span><b>Not connected</b></p><p><span>Autonomy</span><b>Not configured</b></p></div><div className="section"><div className="eyebrow">CURRENT TASK</div><div className="task"><b>Task summary</b><p>{active.task}</p><small>No live reasoning or tool activity available.</small></div></div><div className="section"><div className="eyebrow">CONNECTIONS</div><p><span>Dependencies</span><b>{active.id==='orchestrator'?'3 downstream':'1 upstream'}</b></p><p><span>Inputs / outputs</span><b>Not available</b></p></div><div className="section"><div className="eyebrow">OBSERVABILITY / RECENT EVENTS</div><div className="task">Recent events for the selected run. Start a smoke test to inspect node lifecycle events. Model-driven agent reasoning is not connected yet.</div><div className="approval-list">{historyEvents.filter(event=>!activeRun||event.payload.runId===activeRun.id).slice().reverse().slice(0,6).map(event=><article className="approval-item" key={event.id}><b>{event.type}</b><small>{new Date(event.timestamp).toLocaleTimeString()}</small><p>{typeof event.payload.nodeId==='string'?'Node '+event.payload.nodeId:typeof event.payload.status==='string'?'Status '+event.payload.status:'Workspace event'}</p></article>)}</div></div><div className="section approval-panel"><div className="eyebrow"><ShieldCheck size={12}/> PERSISTENT APPROVAL QUEUE <span>{approvals.length.toString().padStart(2,'0')}</span></div><p className="approval-note">Manual approval ledger. Approving a record does not execute its described action.</p><label className="provider-label">ACTION</label><input className="provider-input" value={approvalAction} onChange={e=>setApprovalAction(e.target.value)} placeholder="e.g. write-file"/><label className="provider-label">SUMMARY</label><textarea className="provider-input provider-prompt" value={approvalSummary} onChange={e=>setApprovalSummary(e.target.value)} placeholder="Describe the proposed operation and its scope…" rows={2}/><button className="provider-button" onClick={createApproval}>Create pending approval</button><div className="approval-list">{approvals.map(item=><article className="approval-item" key={item.id}><b>{item.action}</b><p>{item.summary}</p><small>{new Date(item.createdAt).toLocaleString()}</small><div><button onClick={()=>decideApproval(item.id,'approved')}>Approve</button><button onClick={()=>decideApproval(item.id,'denied')}>Deny</button></div></article>)}</div><small className="approval-message">{approvalMessage}</small></div><div className="section provider-panel"><div className="eyebrow"><KeyRound size={12}/> MODEL PROVIDER / GROQ</div><div className="provider-status"><i className={providerConfigured?'connected':''}/>{providerMessage}</div><label className="provider-label">API KEY <span>ENCRYPTED AT REST</span></label><input className="provider-input" type="password" autoComplete="off" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="gsk_… (desktop app only)"/><button className="provider-button" onClick={saveGroq} disabled={providerBusy||!apiKey.trim()}>Store credential securely</button><label className="provider-label">PROMPT</label><textarea className="provider-input provider-prompt" value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Ask the Groq model something…" rows={3}/><button className="provider-button primary" onClick={askGroq} disabled={providerBusy||!providerConfigured||!prompt.trim()}><Send size={12}/>{providerBusy?'Working…':'Send prompt'}</button>{answer&&<div className="provider-answer">{answer}</div>}</div><div className="safe">The local typed graph executor is enabled for deterministic built-in nodes. External tools and autonomous model-driven execution remain disabled until policy, approval and tool adapters are connected.</div></aside></section>
-    <footer className="status"><span>â  DEVELOPMENT PREVIEW</span><span>LOCAL GRAPH ENGINE <b>GUARDED</b></span><span>MODEL <b>{providerConfigured?'GROQ CONFIGURED':'NOT CONFIGURED'}</b></span><span className="spacer"/>v0.1.0 Â· Electron Â· Babylon.js</footer>
+    <footer className="status"><span>{desktopBridgeAvailable?'ELECTRON DESKTOP':'ISOLATED BROWSER PREVIEW'}</span><span>LOCAL GRAPH ENGINE <b>GUARDED</b></span><span>MODEL <b>{providerConfigured?'GROQ CONFIGURED':'NOT CONFIGURED'}</b></span><span className="spacer"/>v0.1.0 Â· Electron Â· Babylon.js</footer>
   </main>
 }

@@ -4,7 +4,15 @@ import { resolve } from 'node:path'
 
 export default defineConfig({
   main: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: { index: resolve('electron/main.ts') } } } },
-  preload: { plugins: [externalizeDepsPlugin()], build: { rollupOptions: { input: { index: resolve('electron/preload.ts') } } } },
+  preload: {
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        input: { index: resolve('electron/preload.ts') },
+        output: { format: 'cjs', entryFileNames: '[name].cjs' }
+      }
+    }
+  },
   renderer: {
     root: resolve('.'),
     // Packaged Electron windows load this entry point from file://. Absolute asset URLs
@@ -13,6 +21,8 @@ export default defineConfig({
     base: './',
     resolve: { alias: { '@': resolve('src') } },
     plugins: [react()],
-    build: { rollupOptions: { input: { index: resolve('index.html') } } }
+    // Build the isolated desktop smoke page too; CI loads it through Electron to prove
+    // the packaged-style file:// renderer can initialize WebGL and reach preload IPC.
+    build: { rollupOptions: { input: { index: resolve('index.html'), smoke: resolve('smoke.html') } } }
   }
 })

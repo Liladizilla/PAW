@@ -21,14 +21,27 @@ try {
     ?? canvas.getContext('webgl', { antialias: false, preserveDrawingBuffer: true })
   if (!gl) throw new Error('WebGL is unavailable in the Electron renderer.')
 
-  const vertexShader = compileShader(gl, gl.VERTEX_SHADER, `
+  // WebGL 2 requires GLSL ES 3.00 syntax; WebGL 1 uses GLSL ES 1.00.
+  // Using legacy attribute/gl_FragColor syntax against WebGL 2 compiles neither
+  // shader and leaves the smoke-test Electron process waiting for its timeout.
+  const isWebGL2 = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext
+  const vertexSource = isWebGL2 ? `#version 300 es
+    in vec2 position;
+    void main() { gl_Position = vec4(position, 0.0, 1.0); }
+  ` : `
     attribute vec2 position;
     void main() { gl_Position = vec4(position, 0.0, 1.0); }
-  `)
-  const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, `
+  `
+  const fragmentSource = isWebGL2 ? `#version 300 es
+    precision mediump float;
+    out vec4 fragmentColor;
+    void main() { fragmentColor = vec4(0.96, 0.61, 0.20, 1.0); }
+  ` : `
     precision mediump float;
     void main() { gl_FragColor = vec4(0.96, 0.61, 0.20, 1.0); }
-  `)
+  `
+  const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexSource)
+  const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource)
   const program = gl.createProgram()
   if (!program) throw new Error('WebGL could not allocate a shader program.')
   gl.attachShader(program, vertexShader)

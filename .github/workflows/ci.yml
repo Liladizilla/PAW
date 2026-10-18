@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   validate:
-    name: Typecheck, tests and build
+    name: Typecheck, tests, build and desktop smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +31,59 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
+      - name: Electron renderer and WebGL smoke test
+        run: npm run test:desktop-smoke
+      - name: Install RPM validation tools
+        run: sudo apt-get update && sudo apt-get install -y rpm cpio
+      - name: Build Debian and Fedora desktop packages
+        run: npx electron-builder --linux deb rpm --publish never
+      - name: Validate packaged Electron entry points
+        shell: bash
+        run: |
+          set -euo pipefail
+          validate_payload() {
+            local root="$1"
+            local archive app_root
+            archive="$(find "$root" -type f -path '*/resources/app.asar' -print -quit)"
+            test -n "$archive"
+            app_root="$(mktemp -d)"
+            npx --yes @electron/asar extract "$archive" "$app_root"
+            test -f "$app_root/out/main/index.js"
+            test -f "$app_root/out/preload/index.cjs"
+            test -f "$app_root/out/renderer/index.html"
+            find "$root" -type f -path '*/usr/share/applications/*.desktop' -print -quit | grep -q .
+            find "$root" -type f \( -path '*/usr/share/icons/*' -o -path '*/usr/share/pixmaps/*' -o -path '*/resources/*' \) \( -iname '*.png' -o -iname '*.icns' -o -iname '*.ico' \) -print -quit | grep -q .
+            rm -rf "$app_root"
+          }
+          deb="$(find release -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$deb"
+          dpkg-deb --info "$deb"
+          deb_root="$(mktemp -d)"
+          dpkg-deb --extract "$deb" "$deb_root"
+          validate_payload "$deb_root"
+          rm -rf "$deb_root"
+          rpm_file="$(find release -maxdepth 1 -type f -name '*.rpm' -print -quit)"
+          test -n "$rpm_file"
+          rpm -qp --info "$rpm_file"
+          rpm_root="$(mktemp -d)"
+          (cd "$rpm_root" && rpm2cpio "$GITHUB_WORKSPACE/$rpm_file" | cpio -idm --quiet)
+          validate_payload "$rpm_root"
+          rm -rf "$rpm_root"
+          echo 'Debian and RPM packages contain the main process, CommonJS preload, renderer entry, desktop launcher and packaged icon asset.'
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: paw-linux-deb-${{ github.sha }}
+          path: release/*.deb
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: paw-linux-rpm-${{ github.sha }}
+          path: release/*.rpm
+          if-no-files-found: error
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         if: success()
         with:

@@ -4,6 +4,19 @@ P.A.W. is a local-first, cross-platform agent workspace for Linux, Windows and m
 
 **Current state:** early development. The deployed browser preview remains a UI demonstration and cannot invoke privileged desktop IPC. The desktop branch now has typed graph validation/planning, a bounded-concurrency deterministic DAG executor, pause/resume/cancel controls, durable run records and event history, local workspace snapshots, persistent approval records, a narrow preload bridge, and a Groq chat adapter that keeps credentials in Electron's encrypted main-process storage when OS secure storage is available. The first executable nodes are local text/JSON transforms only. Autonomous model planning, external tool adapters, idempotency, remote workers and SQLite migrations are not implemented. Never enter credentials into the browser preview.
 
+
+## Screenshots
+
+The screenshots below are maintained from real packaged desktop builds, not generated mockups. Capture the current Electron app at 16:9 and add the PNG files to `docs/screenshots/` before publishing a release. Until those captures are committed, this section intentionally does not embed placeholder images.
+
+- **Spatial workspace:** `docs/screenshots/spatial-workspace.png`
+- **Runtime and provider settings:** `docs/screenshots/runtime-provider.png`
+- **Run history and approvals:** `docs/screenshots/run-history-approvals.png`
+
+## Fedora Software metadata
+
+The RPM package is intended for Fedora and other RPM-based distributions. AppStream metadata lives in `packaging/appdata/dev.paw.workspace.metainfo.xml`; it describes the current early-development state and does not claim that planned agent capabilities are already available.
+
 ## Architecture and engineering plan
 
 - [System blueprint](docs/SYSTEM_BLUEPRINT.md): modules, runtime, graphs, persistence, memory, providers, plugins and spatial UI.
