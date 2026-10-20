@@ -23,7 +23,7 @@
     "prebuild": "npm run prepare:icons"
   },
   "dependencies": {
-    "@babylonjs/core": "^8.20.0",
+    "@babylonjs/core": "^9.31.0",
     "lucide-react": "^0.468.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
